@@ -709,6 +709,7 @@ CMenuContainer::CMenuContainer( CMenuContainer *pParent, int index, int options,
 
 	m_MaxWidth=0;
 	m_bTwoColumns=false;
+	m_Pane2Column=1;
 	memset(&m_rMenu,0,sizeof(m_rMenu));
 	memset(&m_rContent,0,sizeof(m_rContent));
 	memset(&m_rContent2,0,sizeof(m_rContent2));
@@ -3294,6 +3295,17 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 	bool bMultiColumn=s_ScrollMenus!=0 && (m_Options&CONTAINER_MULTICOLUMN);
 	int shutdownIndex=-1;
 
+	// in the Classic two-column menu the last column break starts the second pane, and any earlier break adds a column to the first pane.
+	// the Windows 7 style keeps using only the first break
+	int lastBreak=-1;
+	if (m_bTwoColumns && !s_bWin7Style)
+	{
+		for (int i=1;i<(int)m_Items.size();i++)
+			if (m_Items[i].bBreak)
+				lastBreak=i;
+	}
+	m_Pane2Column=1;
+
 	{
 		int row=0, column=0, subColumn=0;
 		int y=0;
@@ -3303,7 +3315,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 		{
 			MenuItem &item=m_Items[i];
 
-			if (m_bTwoColumns && column==0 && i>0 && item.bBreak)
+			if (m_bTwoColumns && index==0 && i>0 && item.bBreak && (column==0 || lastBreak>=0))
 			{
 				// start a new column
 				column++;
@@ -3317,7 +3329,11 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 					else
 						y=s_Skin.User_frame_position.x+s_Skin.User_image_padding.y-menuPadding[0].top;
 				}
-				index=1;
+				if (lastBreak<0 || i==lastBreak)
+				{
+					index=1;
+					m_Pane2Column=column;
+				}
 			}
 			item.bNew=false;
 			if (m_bTwoColumns && i<m_OriginalCount && s_MenuMode!=MODE_NORMAL && (i<=m_SearchIndex-m_SearchItemCount || i>m_SearchIndex) && item.id!=MENU_SHUTDOWN_BUTTON)
@@ -3516,7 +3532,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 					y=0;
 				}
 			}
-			else if (item.id==MENU_SEPARATOR && !item.bBlankSeparator && !item.bInline && m_bTwoColumns && column==0 && i+1<(int)m_Items.size() && m_Items[i+1].bBreak)
+			else if (item.id==MENU_SEPARATOR && !item.bBlankSeparator && !item.bInline && m_bTwoColumns && index==0 && i+1<(int)m_Items.size() && m_Items[i+1].bBreak)
 				h=0;
 			item.row=row;
 			item.column=column;
@@ -3622,7 +3638,8 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 
 	// calculate the horizontal position of each item
 	int maxw=0;
-	int maxh[2]={0,0};
+	int maxh[2]={0,0}; // height of the tallest column in each pane
+	int column0Height=0; // the pager scrolls only the first column
 	int scrollWidth=GetSystemMetrics(SM_CXVSCROLL);
 	{
 		m_ColumnOffsets.resize(columnWidths.size());
@@ -3667,16 +3684,11 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 						item.itemRect.right-=scrollWidth;
 				}
 			}
-			if (m_bTwoColumns)
-			{
-				if (maxh[item.column]<item.itemRect.bottom)
-					maxh[item.column]=item.itemRect.bottom;
-			}
-			else
-			{
-				if (maxh[0]<item.itemRect.bottom)
-					maxh[0]=item.itemRect.bottom;
-			}
+			int pane=(m_bTwoColumns && item.column>=m_Pane2Column)?1:0;
+			if (maxh[pane]<item.itemRect.bottom)
+				maxh[pane]=item.itemRect.bottom;
+			if ((item.column==0 || !m_bTwoColumns) && column0Height<item.itemRect.bottom)
+				column0Height=item.itemRect.bottom;
 		}
 
 		if (bInline)
@@ -3777,8 +3789,8 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 		int h2=(maxh[1]<maxHeight[1]?maxh[1]:maxHeight[1]);
 		if (m_bTwoColumns && columnWidths.size()>2)
 		{
-			w1=columnWidths[0];
-			w2=columnWidths[1];
+			w1=m_ColumnOffsets[m_Pane2Column-1]+columnWidths[m_Pane2Column-1]; // all columns of the first pane
+			w2=columnWidths[m_Pane2Column];
 
 			if (s_bWin7Style)
 			{
@@ -3855,9 +3867,9 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 			MenuItem &item=m_Items[i];
 			int dx=m_rContent.left;
 			int dy=m_rContent.top;
-			if (m_bTwoColumns && item.column==1)
+			if (m_bTwoColumns && item.column>=m_Pane2Column)
 			{
-				dx=m_rContent2.left-m_ColumnOffsets[1];
+				dx=m_rContent2.left-m_ColumnOffsets[m_Pane2Column];
 				dy=m_rContent2.top;
 			}
 			if (item.id==MENU_SHUTDOWN_BUTTON)
@@ -3867,49 +3879,33 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 
 		if (m_bTwoColumns && columnWidths.size()>2)
 		{
-			int dh1=0, dh2=0;
+			// each column is aligned to the bottom separately (from its first COLUMN_PADDING on)
+			std::vector<int> columnDH(m_ColumnOffsets.size(),0); // how far down the column's aligned items move
 			for (int i=0;i<m_OriginalCount;i++)
 			{
 				const MenuItem &item=m_Items[i];
-				if (item.column==0)
-				{
-					if (dh1<item.itemRect.bottom)
-						dh1=item.itemRect.bottom;
-				}
-				else
-				{
-					if (dh2<item.itemRect.bottom)
-						dh2=item.itemRect.bottom;
-				}
+				if (columnDH[item.column]<item.itemRect.bottom)
+					columnDH[item.column]=item.itemRect.bottom;
 			}
 			m_rContent.bottom=totalHeight-menuPadding[0].bottom;
 			m_rContent2.bottom=totalHeight-menuPadding[1].bottom;
-			dh1=m_rContent.bottom-dh1;
-			dh2=(s_MenuMode==MODE_SEARCH?m_rContent.bottom:m_rContent2.bottom)-dh2;
-			if (!s_bWin7Style)
+			for (int c=0;c<(int)columnDH.size();c++)
 			{
-				if (dh1<0) dh1=0;
-				if (dh2<0) dh2=0;
+				int bottom=(c<m_Pane2Column || s_MenuMode==MODE_SEARCH)?m_rContent.bottom:m_rContent2.bottom;
+				columnDH[c]=bottom-columnDH[c];
+				if (!s_bWin7Style && columnDH[c]<0)
+					columnDH[c]=0;
 			}
+			int dh1=columnDH[0], dh2=columnDH[m_Pane2Column]; // the Windows 7 style trims overlapping items below
 
-			bool bAlign1=false, bAlign2=false;
+			std::vector<bool> bAlign(columnDH.size(),false);
 			for (int i=0;i<m_OriginalCount;i++)
 			{
 				MenuItem &item=m_Items[i];
-				if (item.column==0)
-				{
-					if (item.bAlignBottom)
-						bAlign1=true;
-					if (bAlign1)
-						OffsetRect(&item.itemRect,0,dh1);
-				}
-				else
-				{
-					if (item.bAlignBottom)
-						bAlign2=true;
-					if (bAlign2)
-						OffsetRect(&item.itemRect,0,dh2);
-				}
+				if (item.bAlignBottom)
+					bAlign[item.column]=true;
+				if (bAlign[item.column])
+					OffsetRect(&item.itemRect,0,columnDH[item.column]);
 				if (item.id==MENU_SHUTDOWN_BUTTON)
 				{
 					item.itemRect.left+=s_Skin.Shutdown_padding.left;
@@ -4068,9 +4064,9 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 	}
 
 	// create pager
-	if (!bMultiColumn && maxh[0]>maxHeight[0] && m_ScrollCount>0 && (m_bSubMenu || !s_bWin7Style))
+	if (!bMultiColumn && column0Height>maxHeight[0] && m_ScrollCount>0 && (m_bSubMenu || !s_bWin7Style))
 	{
-		int d=maxh[0]-maxHeight[0];
+		int d=column0Height-maxHeight[0];
 		m_ScrollHeight=m_Items[m_ScrollCount-1].itemRect.bottom-d-m_rContent.top;
 		if (m_ScrollHeight<=0)
 		{
@@ -4130,7 +4126,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 	{
 		for (int i=m_ScrollCount;i<m_OriginalCount;i++)
 		{
-			int bottom=m_Items[i].column==0?m_rContent.bottom:m_rContent2.bottom;
+			int bottom=m_Items[i].column<m_Pane2Column?m_rContent.bottom:m_rContent2.bottom;
 			if (m_Items[i].itemRect.bottom>bottom)
 				m_Items[i].itemRect.bottom=m_Items[i].itemRect.top;
 		}
@@ -4182,8 +4178,8 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 		{
 			m_SearchBox.Create(L"EDIT",m_hWnd,itemRect,NULL,WS_CHILD|(s_Skin.Search_frame?WS_BORDER:0)|ES_AUTOHSCROLL|ES_WANTRETURN);
 			SetWindowSubclass(m_SearchBox,SubclassSearchBox,(UINT_PTR)this,0);
-			int index=(m_bTwoColumns && m_Items[m_SearchIndex].column==1)?1:0;
-			if (index==1 && (m_SearchIndex==0 || m_Items[m_SearchIndex-1].column==0))
+			int index=(m_bTwoColumns && m_Items[m_SearchIndex].column>=m_Pane2Column)?1:0;
+			if (index==1 && (m_SearchIndex==0 || m_Items[m_SearchIndex-1].column<m_Pane2Column))
 				m_SearchBox.SetFont(s_Skin.ItemSettings[MenuSkin::COLUMN2_ITEM].font);
 			else
 				m_SearchBox.SetFont(s_Skin.ItemSettings[MenuSkin::COLUMN1_ITEM].font);
@@ -5807,7 +5803,7 @@ LRESULT CMenuContainer::OnKeyDown( UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL
 		if (index<0)
 		{
 			// no item is selected - find the first selectable item in the last column then go up
-			int col=(m_bTwoColumns?1:0);
+			int col=(m_bTwoColumns?(int)m_ColumnOffsets.size()-1:0);
 			index=0;
 			for (int i=0;i<n;i++)
 			{
@@ -8668,7 +8664,7 @@ HWND CMenuContainer::ToggleStartMenu( int taskbarId, bool bKeyboard, bool bAllPr
 	if (pStartMenu->m_SearchIndex>=0 && GetSettingInt(L"SearchBox")==SEARCHBOX_NORMAL && GetSettingBool(L"SearchSelect"))
 	{
 		pStartMenu->ActivateItem(pStartMenu->m_SearchIndex,ACTIVATE_SELECT,NULL);
-		if (pStartMenu->m_bTwoColumns && pStartMenu->m_Items[pStartMenu->m_SearchIndex].column==0 && pStartMenu->m_SearchIndex+1<(int)pStartMenu->m_Items.size() && pStartMenu->m_Items[pStartMenu->m_SearchIndex+1].column==1)
+		if (pStartMenu->m_bTwoColumns && pStartMenu->m_Items[pStartMenu->m_SearchIndex].column==0 && pStartMenu->m_SearchIndex+1<(int)pStartMenu->m_Items.size() && pStartMenu->m_Items[pStartMenu->m_SearchIndex+1].column!=0)
 			s_bOverrideFirstDown=true;
 	}
 	else if (!bTreeSelected)
