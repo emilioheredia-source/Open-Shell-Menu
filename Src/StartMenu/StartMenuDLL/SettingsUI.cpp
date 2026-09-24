@@ -1505,6 +1505,9 @@ protected:
 
 private:
 	int m_Style, m_StyleMask;
+
+	// FLAT_LIST only applies to the Recent Programs item
+	bool IsRecentPrograms( void ) const { return m_pItem->pStdCommand && wcscmp(m_pItem->pStdCommand->name,L"recent_programs")==0; }
 };
 
 LRESULT CEditMenuDlg::OnInitDialog( UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled )
@@ -1534,6 +1537,8 @@ LRESULT CEditMenuDlg::OnInitDialog( UINT uMsg, WPARAM wParam, LPARAM lParam, BOO
 	CheckDlgButton(IDC_CHECKINLINE,(m_pItem->settings&StdMenuItem::MENU_INLINE)?BST_CHECKED:BST_UNCHECKED);
 	CheckDlgButton(IDC_CHECKSPLIT,(m_pItem->settings&StdMenuItem::MENU_SPLIT_BUTTON)?BST_CHECKED:BST_UNCHECKED);
 	CheckDlgButton(IDC_CHECKNOEXT,(m_pItem->settings&StdMenuItem::MENU_NOEXTENSIONS)?BST_CHECKED:BST_UNCHECKED);
+	CheckDlgButton(IDC_CHECKFLATLIST,(m_pItem->settings&StdMenuItem::MENU_FLAT_LIST)?BST_CHECKED:BST_UNCHECKED);
+	GetDlgItem(IDC_CHECKFLATLIST).EnableWindow(IsRecentPrograms());
 	if (m_pItem->pStdCommand && (wcscmp(m_pItem->pStdCommand->name,L"programs")==0 || wcscmp(m_pItem->pStdCommand->name,L"apps")==0))
 	{
 		CheckDlgButton(IDC_CHECKMULTICOLUMN,BST_CHECKED);
@@ -1646,6 +1651,11 @@ LRESULT CEditMenuDlg::OnInitDialog( UINT uMsg, WPARAM wParam, LPARAM lParam, BOO
 	tool.uId=(UINT_PTR)(HWND)GetDlgItem(IDC_CHECKNOEXT);
 	tooltip.SendMessage(TTM_ADDTOOL,0,(LPARAM)&tool);
 
+	str=LoadStringEx(IDS_FLAT_LIST_TIP);
+	tool.lpszText=(LPWSTR)(LPCWSTR)str;
+	tool.uId=(UINT_PTR)(HWND)GetDlgItem(IDC_CHECKFLATLIST);
+	tooltip.SendMessage(TTM_ADDTOOL,0,(LPARAM)&tool);
+
 	str=LoadStringEx(IDS_RESTORE_TIP);
 	tool.lpszText=(LPWSTR)(LPCWSTR)str;
 	tool.uId=(UINT_PTR)(HWND)GetDlgItem(IDC_BUTTONRESET);
@@ -1676,6 +1686,7 @@ LRESULT CEditMenuDlg::OnOK( WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHan
 	if (IsDlgButtonChecked(IDC_CHECKINLINE)==BST_CHECKED) m_pItem->settings|=StdMenuItem::MENU_INLINE;
 	if (IsDlgButtonChecked(IDC_CHECKSPLIT)==BST_CHECKED) m_pItem->settings|=StdMenuItem::MENU_SPLIT_BUTTON;
 	if (IsDlgButtonChecked(IDC_CHECKNOEXT)==BST_CHECKED) m_pItem->settings|=StdMenuItem::MENU_NOEXTENSIONS;
+	if (IsRecentPrograms() && IsDlgButtonChecked(IDC_CHECKFLATLIST)==BST_CHECKED) m_pItem->settings|=StdMenuItem::MENU_FLAT_LIST;
 	if (bForceMultiColumn)
 	{
 		// special handling of the Programs menu
@@ -1711,6 +1722,7 @@ LRESULT CEditMenuDlg::OnCommandChanged( WORD wNotifyCode, WORD wID, HWND hWndCtl
 		CheckDlgButton(IDC_CHECKMULTICOLUMN,(m_pItem->settings&StdMenuItem::MENU_MULTICOLUMN)?BST_CHECKED:BST_UNCHECKED);
 		GetDlgItem(IDC_CHECKMULTICOLUMN).EnableWindow(TRUE);
 	}
+	GetDlgItem(IDC_CHECKFLATLIST).EnableWindow(IsRecentPrograms());
 	UpdateIcons(IDC_ICONN,0);
 	return 0;
 }
@@ -1869,6 +1881,7 @@ void CCustomMenuDlg::ParseTreeItemExtra( CTreeItem *pItem, CSettingsParser &pars
 		if (_wcsicmp(token,L"INLINE")==0) pItem->settings|=StdMenuItem::MENU_INLINE;
 		if (_wcsicmp(token,L"SPLIT")==0) pItem->settings|=StdMenuItem::MENU_SPLIT_BUTTON;
 		if (_wcsicmp(token,L"NOEXTENSIONS")==0) pItem->settings|=StdMenuItem::MENU_NOEXTENSIONS;
+		if (_wcsicmp(token,L"FLAT_LIST")==0) pItem->settings|=StdMenuItem::MENU_FLAT_LIST;
 	}
 }
 
@@ -1891,6 +1904,7 @@ void CCustomMenuDlg::SerializeItemExtra( CTreeItem *pItem, std::vector<wchar_t> 
 	if (pItem->settings&StdMenuItem::MENU_INLINE) AppendString(stringBuilder,L"INLINE|");
 	if (pItem->settings&StdMenuItem::MENU_SPLIT_BUTTON) AppendString(stringBuilder,L"SPLIT|");
 	if (pItem->settings&StdMenuItem::MENU_NOEXTENSIONS) AppendString(stringBuilder,L"NOEXTENSIONS|");
+	if (pItem->settings&StdMenuItem::MENU_FLAT_LIST) AppendString(stringBuilder,L"FLAT_LIST|");
 	stringBuilder[stringBuilder.size()-1]='\n';
 }
 

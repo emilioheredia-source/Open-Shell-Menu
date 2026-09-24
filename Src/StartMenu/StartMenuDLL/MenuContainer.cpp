@@ -1190,6 +1190,14 @@ void CMenuContainer::AddStandardItems( void )
 			item.bAlignBottom=bAlignBottom;
 			item.bInlineFirst=bInlineFirst;
 			bAlignBottom=bInlineFirst=false;
+
+			if (pStdItem->id==MENU_RECENT_PROGRAMS && (pStdItem->settings&StdMenuItem::MENU_FLAT_LIST) && !pInlineParent)
+			{
+				// placeholder, replaced by the recent programs in InsertRecentProgramLists once all other items are known
+				m_Items.insert(m_Items.begin()+menuIdx,1,item);
+				menuIdx++;
+				continue;
+			}
 			TNetworkType networkType=NETWORK_NONE;
 
 			Assert(pStdItem->folder1 || !pStdItem->folder2);
@@ -1496,6 +1504,56 @@ void CMenuContainer::AddStandardItems( void )
 				menuIdx++;
 			}
 		}
+		InsertRecentProgramLists();
+	}
+}
+
+// Replaces each Recent Programs item that has MENU_FLAT_LIST with the recent programs themselves.
+// This runs after all other items are added, because GetRecentPrograms skips programs already in the main menu.
+void CMenuContainer::InsertRecentProgramLists( void )
+{
+	int nRecent=GetSettingInt(L"MaxRecentPrograms");
+	if (nRecent<0)
+		nRecent=-nRecent;
+	if (nRecent>MRU_PROGRAMS_COUNT) nRecent=MRU_PROGRAMS_COUNT;
+
+	bool bSecondColumn=false;
+	for (int i=0;i<(int)m_Items.size();i++)
+	{
+		if (m_Items[i].bBreak && !m_bSubMenu && s_Skin.TwoColumns)
+			bSecondColumn=true;
+		if (m_Items[i].id!=MENU_RECENT_PROGRAMS || !m_Items[i].pStdItem || !(m_Items[i].pStdItem->settings&StdMenuItem::MENU_FLAT_LIST))
+			continue;
+
+		std::vector<MenuItem> items;
+		if (nRecent>0)
+			GetRecentPrograms(items,nRecent,bSecondColumn);
+
+		if (!m_bSubMenu && GetSettingBool(L"EnableJumplists"))
+		{
+			for (std::vector<MenuItem>::iterator it=items.begin();it!=items.end();++it)
+			{
+				MenuItem &item=*it;
+				if (item.bLink && !item.bFolder && item.pItem1)
+				{
+					CItemManager::RWLock lock(&g_ItemManager,false,CItemManager::RWLOCK_ITEMS);
+					item.bFolder=(!item.pItemInfo->GetAppid().IsEmpty() && HasJumplist(item.pItemInfo->GetAppid()));
+					item.bHasJumpList=item.bFolder;
+					item.bSplit=item.bFolder;
+				}
+			}
+		}
+
+		// the placeholder may start a column or be aligned to the bottom. pass that on to whatever takes its place
+		bool bBreak=m_Items[i].bBreak, bAlignBottom=m_Items[i].bAlignBottom;
+		m_Items.erase(m_Items.begin()+i);
+		m_Items.insert(m_Items.begin()+i,items.begin(),items.end());
+		if (i<(int)m_Items.size())
+		{
+			if (bBreak) m_Items[i].bBreak=true;
+			if (bAlignBottom) m_Items[i].bAlignBottom=true;
+		}
+		i+=(int)items.size()-1; // continue after the inserted items
 	}
 }
 
@@ -1605,12 +1663,13 @@ static bool IgnoreUserAssistItem(const UserAssistItem& uaItem)
 	return false;
 }
 
-void CMenuContainer::GetRecentPrograms( std::vector<MenuItem> &items, int maxCount )
+void CMenuContainer::GetRecentPrograms( std::vector<MenuItem> &items, int maxCount, bool bSecondColumn )
 {
 	bool bShowMetro=GetSettingBool(L"RecentMetroApps");
 	const std::vector<MenuItem> &mainItems=s_Menus[0]->m_Items;
 
-	int iconSizeFlag=(!m_bSubMenu && s_Skin.Main_icon_size==MenuSkin::ICON_SIZE_LARGE)?CItemManager::INFO_LARGE_ICON:CItemManager::INFO_SMALL_ICON;
+	MenuSkin::TIconSize mainIconSize=bSecondColumn?s_Skin.Main2_icon_size:s_Skin.Main_icon_size;
+	int iconSizeFlag=(!m_bSubMenu && mainIconSize==MenuSkin::ICON_SIZE_LARGE)?CItemManager::INFO_LARGE_ICON:CItemManager::INFO_SMALL_ICON;
 	if (s_RecentPrograms==RECENT_PROGRAMS_RECENT)
 	{
 		for (int i=0;i<MRU_PROGRAMS_COUNT;i++)
@@ -3069,21 +3128,24 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 	bool bRecentReverse=GetSettingInt(L"MaxRecentPrograms")<0;
 	bool bRecentByName=GetSettingBool(L"RecentSortName");
 
-	int firstRecent=-1, lastRecent=-1;
+	// each block of recent programs is reordered separately (Recent Programs items with MENU_FLAT_LIST can add more than one)
+	// the layout is done in MRU order, and the blocks are reordered for display after it
+	std::vector<std::pair<int,int>> recentBlocks; // [first,last) of each block
 	if ((bRecentReverse || bRecentByName) && (!m_bSubMenu || (m_Options&CONTAINER_RECENT)))
 	{
-		for (int i=0;i<(int)m_Items.size();i++)
+		for (int i=0;i<(int)m_Items.size();)
 		{
-			if (m_Items[i].id==MENU_RECENT)
+			if (m_Items[i].id!=MENU_RECENT)
 			{
-				if (firstRecent==-1) firstRecent=i;
-				lastRecent=i+1;
+				i++;
+				continue;
 			}
-			else if (firstRecent!=-1)
-				break;
+			int firstRecent=i;
+			while (i<(int)m_Items.size() && m_Items[i].id==MENU_RECENT)
+				i++;
+			std::sort(m_Items.begin()+firstRecent,m_Items.begin()+i,MenuItem::MruOrderComparator());
+			recentBlocks.push_back(std::make_pair(firstRecent,i));
 		}
-		if (firstRecent>=0)
-			std::sort(m_Items.begin()+firstRecent,m_Items.begin()+lastRecent,MenuItem::MruOrderComparator());
 	}
 
 	m_bTwoColumns=(!m_bSubMenu && s_Skin.TwoColumns);
@@ -3954,9 +4016,10 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 			}
 		}
 
-		if (firstRecent>=0)
+		for (std::vector<std::pair<int,int>>::const_iterator block=recentBlocks.begin();block!=recentBlocks.end();++block)
 		{
 			// reorder recent items
+			int firstRecent=block->first, lastRecent=block->second;
 			int top=m_Items[firstRecent].itemRect.top;
 			int firstRow=m_Items[firstRecent].row;
 			if (bRecentByName)

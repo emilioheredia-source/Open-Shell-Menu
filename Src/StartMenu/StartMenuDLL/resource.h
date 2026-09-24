@@ -101,6 +101,7 @@
 #define IDC_SKIN_CLASSIC2               1087
 #define IDC_SKIN_WIN7                   1088
 #define IDC_STATICEDGE2                 1089
+#define IDC_CHECKFLATLIST               1090
 #define IDD_CUSTOMMENU                  3001
 #define IDS_APP_TITLE                   3001
 #define IDD_SKINSETTINGS                3002
@@ -788,6 +789,7 @@
 #define IDS_ALT_ACCELERATORS_TIP        3689
 #define IDS_BUTTON_OFFSET				3690
 #define IDS_BUTTON_OFFSET_TIP			3691
+#define IDS_FLAT_LIST_TIP			3692
 #define IDS_STRING7001                  7001
 #define IDS_STRING7002                  7002
 #define IDS_STRING7003                  7003
@@ -852,7 +854,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        126
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1090
+#define _APS_NEXT_CONTROL_VALUE         1091
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
