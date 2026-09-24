@@ -135,6 +135,7 @@ struct StdMenuItem
 		MENU_SPLIT_BUTTON   = 0x002000, // the item is drawn as a split button
 		MENU_ITEM_DISABLED  = 0x004000, // the item is disabled
 		MENU_NORECENT       = 0x008000, // don't show recent items in the root menu (because a sub-menu uses MENU_RECENT_ITEMS)
+		MENU_FLAT_LIST      = 0x010000, // show the recent programs as a list in place of the item, instead of a sub-menu
 
 		// style
 		MENU_STYLE_CLASSIC1 = 0x100000,
@@ -700,7 +701,8 @@ private:
 	};
 
 	int AddSearchItems( const std::vector<SearchItem> &items, const CString &categoryName, unsigned int categoryHash, int originalCount );
-	void GetRecentPrograms( std::vector<MenuItem> &items, int maxCount );
+	void GetRecentPrograms( std::vector<MenuItem> &items, int maxCount, bool bSecondColumn=false );
+	void InsertRecentProgramLists( void );
 
 	// additional commands for the context menu
 	enum
