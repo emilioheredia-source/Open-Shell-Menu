@@ -2441,15 +2441,17 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 		}
 	}
 
-	// draw vertical separators
-	if (m_bSubMenu && m_ColumnOffsets.size()>1)
+	// draw vertical separators (between the columns of a sub-menu, or of the first pane of the main menu.
+	// the separator between the two panes is part of the background)
+	size_t separatedColumns=m_bSubMenu?m_ColumnOffsets.size():(m_bTwoColumns?(size_t)m_Pane2Column:0);
+	if (separatedColumns>1)
 	{
 		if (bmpSeparatorV.GetBitmap())
 		{
 			HGDIOBJ bmp0=SelectObject(hdc2,bmpSeparatorV.GetBitmap());
 			RECT rSrc={0,0,sepWidth,sepSlicesY[0]+sepSlicesY[1]+sepSlicesY[2]};
 			RECT rMargins={0,sepSlicesY[0],0,sepSlicesY[2]};
-			for (size_t i=1;i<m_ColumnOffsets.size();i++)
+			for (size_t i=1;i<separatedColumns;i++)
 			{
 				int x=m_rContent.left+m_ColumnOffsets[i];
 				RECT rc={x-sepWidth,m_rContent.top,x,m_rContent.bottom};
@@ -2470,7 +2472,7 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 			{
 				offset=(sepWidth-2)/2;
 			}
-			for (size_t i=1;i<m_ColumnOffsets.size();i++)
+			for (size_t i=1;i<separatedColumns;i++)
 			{
 				int x=m_rContent.left+m_ColumnOffsets[i]+offset;
 				RECT rc={x-sepWidth,m_rContent.top,x,m_rContent.bottom};

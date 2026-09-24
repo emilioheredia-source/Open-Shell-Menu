@@ -662,6 +662,7 @@ private:
 	POINT m_PaintOffset;
 	int m_MaxWidth;
 	bool m_bTwoColumns;
+	int m_Pane2Column; // first column of the second pane. in the Classic two-column menu, each column break but the last adds a column to the first pane
 	RECT m_rMenu;
 	RECT m_rContent;
 	RECT m_rContent2;
