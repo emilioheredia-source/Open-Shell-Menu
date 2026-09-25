@@ -202,6 +202,10 @@ static unsigned int ParseItemSettings( const wchar_t *name )
 		if (_wcsicmp(token,L"INLINE")==0) settings|=StdMenuItem::MENU_INLINE;
 		if (_wcsicmp(token,L"SPLIT")==0) settings|=StdMenuItem::MENU_SPLIT_BUTTON;
 		if (_wcsicmp(token,L"FLAT_LIST")==0) settings|=StdMenuItem::MENU_FLAT_LIST;
+		if (_wcsicmp(token,L"HEADING_SMALL")==0) settings|=StdMenuItem::MENU_HEADING_SMALL;
+		if (_wcsicmp(token,L"HEADING_LARGE")==0) settings|=StdMenuItem::MENU_HEADING_LARGE;
+		if (_wcsicmp(token,L"HEADING_BOLD")==0) settings|=StdMenuItem::MENU_HEADING_BOLD;
+		if (_wcsicmp(token,L"HEADING_ITALIC")==0) settings|=StdMenuItem::MENU_HEADING_ITALIC;
 	}
 	return settings;
 }

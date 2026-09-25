@@ -159,12 +159,12 @@ void ClearSettingsTreeItemAccessibility( HWND tree )
 	}
 }
 
-// Removes everything EnableSettingsTreeAccessibility and the item functions registered for the tree. Call it before the tree is destroyed:
-// the property servers are objects in this DLL, and Windows keeps them after the window is gone. When the DLL is unloaded
-// (Open-Shell exits or restarts) and something later sets an accessibility property in the same process, Windows releases
-// the stale servers and calls into unloaded code, which crashes Explorer (FAST_FAIL_GUARD_ICALL_CHECK_FAILURE in oleacc)
+// Removes the accessibility properties of the tree and its items. Call it before the tree is destroyed
 void DisableSettingsTreeAccessibility( HWND tree )
 {
+	// the property servers are objects in this DLL, and Windows keeps them after the window is gone. once the DLL is unloaded
+	// (Open-Shell exits or restarts), the next accessibility property set in the process makes Windows release the stale
+	// servers, which calls into unloaded code and crashes Explorer (FAST_FAIL_GUARD_ICALL_CHECK_FAILURE in oleacc)
 	ClearSettingsTreeItemAccessibility(tree);
 	CComPtr<IAccPropServices> props;
 	if (FAILED(CoCreateInstance(CLSID_SettingsAccPropServices,NULL,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&props)))) return;
