@@ -97,6 +97,7 @@ enum TMenuID
 	MENU_RESTART_NOUPDATE,
 	MENU_SHUTDOWN_NOUPDATE,
 	MENU_SHUTDOWN_HYBRID,
+	MENU_PINNED_PROGRAMS, // places the pinned programs in the Classic two-column main menu
 	
 	MENU_IGNORE=1024, // ignore this item
 };
@@ -662,6 +663,7 @@ private:
 	POINT m_PaintOffset;
 	int m_MaxWidth;
 	bool m_bTwoColumns;
+	int m_PinnedPosition; // Classic two-column main menu: the pinned programs (items 0..m_ScrollCount) are laid out just before this item. -1 when they come first
 	int m_Pane2Column; // first column of the second pane. in the Classic two-column menu, each column break but the last adds a column to the first pane
 	RECT m_rMenu;
 	RECT m_rContent;
@@ -704,6 +706,8 @@ private:
 	int AddSearchItems( const std::vector<SearchItem> &items, const CString &categoryName, unsigned int categoryHash, int originalCount );
 	void GetRecentPrograms( std::vector<MenuItem> &items, int maxCount, bool bSecondColumn=false );
 	void InsertRecentProgramLists( void );
+	void PlacePinnedPrograms( bool bSetPosition );
+	void GetLayoutOrder( std::vector<int> &order ) const;
 
 	// additional commands for the context menu
 	enum
@@ -845,7 +849,7 @@ private:
 	void SetSearchState( TSearchState state );
 	void UpdateSearchResults( bool bForceShowAll );
 	void AddInternetSearch( size_t index );
-	void AddStandardItems( void );
+	void AddStandardItems( bool bPlacePinned=false );
 	void UpdateAccelerators( int first, int last );
 	void ExecuteCommand( const wchar_t *command, bool bElevated, bool bEnvSubst );
 	void RunUserCommand( bool bPicture );
