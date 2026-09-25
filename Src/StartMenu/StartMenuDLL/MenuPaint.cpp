@@ -501,12 +501,12 @@ void CMenuContainer::CreateBackground( int width1, int width2, int height1, int 
 	totalWidth1+=menuPadding[0].left+menuPadding[0].right;
 	if (totalWidth1<total) totalWidth1=total;
 	int totalWidth2=0;
-	if (m_bTwoColumns)
+	if (m_bTwoColumns && m_bSecondPane)
 		totalWidth2=width2+menuPadding[1].left+menuPadding[1].right;
 	totalWidth=totalWidth1+totalWidth2;
 
 	totalHeight=height1+menuPadding[0].top+menuPadding[0].bottom;
-	if (m_bTwoColumns)
+	if (m_bTwoColumns && m_bSecondPane)
 	{
 		int totalHeight2=height2+menuPadding[1].top+menuPadding[1].bottom;
 		if (totalHeight<totalHeight2) totalHeight=totalHeight2;

@@ -664,6 +664,7 @@ private:
 	int m_MaxWidth;
 	bool m_bTwoColumns;
 	int m_PinnedPosition; // Classic two-column main menu: the pinned programs (items 0..m_ScrollCount) are laid out just before this item. -1 when they come first
+	bool m_bSecondPane; // false when the SecondPane setting gives no column the second-pane look
 	int m_Pane2Column; // first column of the second pane. in the Classic two-column menu, each column break but the last adds a column to the first pane
 	RECT m_rMenu;
 	RECT m_rContent;
