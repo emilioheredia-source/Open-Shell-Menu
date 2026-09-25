@@ -1060,6 +1060,7 @@ static const CStdCommand g_StdCommands[]={
 	{L"switch_user",IDS_SHUTDOWN_SWITCH,IDS_SWITCH_TIP,L"SwitchUserItem",L"$Menu.SwitchUser",L"$Menu.SwitchUserTip",L"none"},
 	{L"lock",IDS_SHUTDOWN_LOCK,IDS_LOCK_TIP,L"LockItem",L"$Menu.Lock",L"$Menu.LockTip",L"none"},
 	{L"recent_programs",IDS_SHOW_RECENT,IDS_RECENT_TIP,L"RecentPrograms",NULL,NULL,L"none"},
+	{L"pinned_programs",IDS_PINNED_ITEM,IDS_PINNED_ITEM_TIP,L"PinnedPrograms",NULL,NULL,L"none",NULL,StdMenuItem::MENU_STYLE_CLASSIC2},
 	{L"monitor_off",IDS_MONITOR_OFF_ITEM,IDS_MONITOR_OFF_TIP,L"MonitorOffItem",L"$Menu.MonitorOff",NULL,L"none"},
 	{L"",IDS_CUSTOM_ITEM,IDS_CUSTOM_TIP,L"CustomItem",NULL,NULL,L""},
 	{NULL},

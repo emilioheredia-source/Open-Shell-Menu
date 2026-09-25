@@ -709,6 +709,7 @@ CMenuContainer::CMenuContainer( CMenuContainer *pParent, int index, int options,
 
 	m_MaxWidth=0;
 	m_bTwoColumns=false;
+	m_PinnedPosition=-1;
 	m_Pane2Column=1;
 	memset(&m_rMenu,0,sizeof(m_rMenu));
 	memset(&m_rContent,0,sizeof(m_rContent));
@@ -1052,8 +1053,10 @@ void CMenuContainer::AddInternetSearch( size_t index )
 	m_Items.insert(m_Items.begin()+index,1,item);
 }
 
-void CMenuContainer::AddStandardItems( void )
+void CMenuContainer::AddStandardItems( bool bPlacePinned )
 {
+	if (bPlacePinned)
+		m_PinnedPosition=-1;
 	if (m_pStdItem && m_pStdItem->id!=MENU_NO)
 	{
 		bool bItemsFirst=(m_Options&(CONTAINER_ITEMS_FIRST|CONTAINER_SEARCH))==CONTAINER_ITEMS_FIRST;
@@ -1192,6 +1195,15 @@ void CMenuContainer::AddStandardItems( void )
 			item.bInlineFirst=bInlineFirst;
 			bAlignBottom=bInlineFirst=false;
 
+			if (pStdItem->id==MENU_PINNED_PROGRAMS)
+			{
+				// only the Classic two-column main menu can place its pinned programs. see PlacePinnedPrograms
+				if (m_bSubMenu || s_bWin7Style || pInlineParent)
+					continue;
+				m_Items.insert(m_Items.begin()+menuIdx,1,item);
+				menuIdx++;
+				continue;
+			}
 			if (pStdItem->id==MENU_RECENT_PROGRAMS && (pStdItem->settings&StdMenuItem::MENU_FLAT_LIST) && !pInlineParent)
 			{
 				// placeholder, replaced by the recent programs in InsertRecentProgramLists once all other items are known
@@ -1506,6 +1518,7 @@ void CMenuContainer::AddStandardItems( void )
 			}
 		}
 		InsertRecentProgramLists();
+		PlacePinnedPrograms(bPlacePinned);
 	}
 }
 
@@ -1518,13 +1531,20 @@ void CMenuContainer::InsertRecentProgramLists( void )
 		nRecent=-nRecent;
 	if (nRecent>MRU_PROGRAMS_COUNT) nRecent=MRU_PROGRAMS_COUNT;
 
-	bool bSecondColumn=false;
 	for (int i=0;i<(int)m_Items.size();i++)
 	{
-		if (m_Items[i].bBreak && !m_bSubMenu && s_Skin.TwoColumns)
-			bSecondColumn=true;
 		if (m_Items[i].id!=MENU_RECENT_PROGRAMS || !m_Items[i].pStdItem || !(m_Items[i].pStdItem->settings&StdMenuItem::MENU_FLAT_LIST))
 			continue;
+
+		// the list is in the second pane if it comes after the break that starts it: the last break in the Classic two-column menu, the first in the Windows 7 style
+		int pane2Start=-1;
+		if (!m_bSubMenu && s_Skin.TwoColumns)
+		{
+			for (int j=1;j<(int)m_Items.size();j++)
+				if (m_Items[j].bBreak && (pane2Start<0 || !s_bWin7Style))
+					pane2Start=j;
+		}
+		bool bSecondColumn=(pane2Start>=0 && i>=pane2Start);
 
 		std::vector<MenuItem> items;
 		if (nRecent>0)
@@ -1556,6 +1576,63 @@ void CMenuContainer::InsertRecentProgramLists( void )
 		}
 		i+=(int)items.size()-1; // continue after the inserted items
 	}
+}
+
+// Removes the Pinned Programs placeholders. The first one decides where the pinned programs are laid out in the Classic two-column main menu.
+// The pinned programs stay at the start of m_Items (items 0..m_ScrollCount), because the pager, painting, keyboard and drag and drop rely on it.
+// Only the layout order changes, see GetLayoutOrder
+void CMenuContainer::PlacePinnedPrograms( bool bSetPosition )
+{
+	for (int i=0;i<(int)m_Items.size();i++)
+	{
+		if (m_Items[i].id!=MENU_PINNED_PROGRAMS)
+			continue;
+		bool bBreak=m_Items[i].bBreak, bAlignBottom=m_Items[i].bAlignBottom;
+		m_Items.erase(m_Items.begin()+i);
+		if (bSetPosition && m_PinnedPosition<0 && m_ScrollCount>0)
+		{
+			m_PinnedPosition=i;
+			// the pinned programs take over the placeholder's column break
+			if (bBreak) m_Items[0].bBreak=true;
+			if (bAlignBottom) m_Items[0].bAlignBottom=true;
+			// AddStandardItems aligns its separator after the pinned programs to the bottom when the menu starts with COLUMN_PADDING.
+			// that padding now belongs to the first item laid out after the pinned programs' column
+			if (m_ScrollCount+1<(int)m_Items.size() && m_Items[m_ScrollCount].id==MENU_SEPARATOR && m_Items[m_ScrollCount].bAlignBottom)
+			{
+				m_Items[m_ScrollCount].bAlignBottom=false;
+				m_Items[m_ScrollCount+1].bAlignBottom=true;
+			}
+		}
+		else if (i<(int)m_Items.size())
+		{
+			if (bBreak) m_Items[i].bBreak=true;
+			if (bAlignBottom) m_Items[i].bAlignBottom=true;
+		}
+		i--; // continue with the item that took the placeholder's place
+	}
+}
+
+// The order in which InitWindowInternal lays out the items: normally the order of m_Items.
+// With a Pinned Programs item, the items configured before it come first, then the pinned programs and their separator, then the rest
+void CMenuContainer::GetLayoutOrder( std::vector<int> &order ) const
+{
+	int count=(int)m_Items.size();
+	order.resize(count);
+	for (int i=0;i<count;i++)
+		order[i]=i;
+	if (m_PinnedPosition<0 || m_bSubMenu || s_bWin7Style || !m_bTwoColumns || s_MenuMode!=MODE_NORMAL)
+		return;
+	int pinnedEnd=m_ScrollCount;
+	if (pinnedEnd<count && m_Items[pinnedEnd].id==MENU_SEPARATOR)
+		pinnedEnd++;
+	int position=m_PinnedPosition<count?m_PinnedPosition:count;
+	if (position<=pinnedEnd)
+		return; // the pinned programs come first anyway
+	int k=0;
+	for (int i=pinnedEnd;i<position;i++)
+		order[k++]=i;
+	for (int i=0;i<pinnedEnd;i++)
+		order[k++]=i;
 }
 
 void CMenuContainer::UpdateAccelerators( int first, int last )
@@ -2667,7 +2744,7 @@ void CMenuContainer::InitItems( void )
 		MenuItem item(MENU_PROGRAMS_TREE);
 		m_Items.push_back(item);
 	}
-	AddStandardItems();
+	AddStandardItems(true);
 
 	// remove trailing separators
 	while (!m_Items.empty() && m_Items[m_Items.size()-1].id==MENU_SEPARATOR && !m_Items[m_Items.size()-1].bInline)
@@ -3297,12 +3374,14 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 
 	// in the Classic two-column menu the last column break starts the second pane, and any earlier break adds a column to the first pane.
 	// the Windows 7 style keeps using only the first break
+	std::vector<int> order; // positions below are in this order (see GetLayoutOrder)
+	GetLayoutOrder(order);
 	int lastBreak=-1;
 	if (m_bTwoColumns && !s_bWin7Style)
 	{
-		for (int i=1;i<(int)m_Items.size();i++)
-			if (m_Items[i].bBreak)
-				lastBreak=i;
+		for (int k=1;k<(int)order.size();k++)
+			if (m_Items[order[k]].bBreak)
+				lastBreak=k;
 	}
 	m_Pane2Column=1;
 
@@ -3311,11 +3390,12 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 		int y=0;
 		int maxw=0;
 		int index=0;
-		for (int i=0;i<(int)m_Items.size();i++)
+		for (int k=0;k<(int)order.size();k++)
 		{
+			int i=order[k];
 			MenuItem &item=m_Items[i];
 
-			if (m_bTwoColumns && index==0 && i>0 && item.bBreak && (column==0 || lastBreak>=0))
+			if (m_bTwoColumns && index==0 && k>0 && item.bBreak && (column==0 || lastBreak>=0))
 			{
 				// start a new column
 				column++;
@@ -3329,7 +3409,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 					else
 						y=s_Skin.User_frame_position.x+s_Skin.User_image_padding.y-menuPadding[0].top;
 				}
-				if (lastBreak<0 || i==lastBreak)
+				if (lastBreak<0 || k==lastBreak)
 				{
 					index=1;
 					m_Pane2Column=column;
@@ -3532,7 +3612,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 					y=0;
 				}
 			}
-			else if (item.id==MENU_SEPARATOR && !item.bBlankSeparator && !item.bInline && m_bTwoColumns && index==0 && i+1<(int)m_Items.size() && m_Items[i+1].bBreak)
+			else if (item.id==MENU_SEPARATOR && !item.bBlankSeparator && !item.bInline && m_bTwoColumns && index==0 && k+1<(int)order.size() && m_Items[order[k+1]].bBreak)
 				h=0;
 			item.row=row;
 			item.column=column;
@@ -3639,7 +3719,8 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 	// calculate the horizontal position of each item
 	int maxw=0;
 	int maxh[2]={0,0}; // height of the tallest column in each pane
-	int column0Height=0; // the pager scrolls only the first column
+	int scrollHeight=0; // the pager scrolls only the column of the pinned programs (items 0..m_ScrollCount)
+	int scrollColumn=(m_ScrollCount>0 && !m_Items.empty())?m_Items[0].column:0;
 	int scrollWidth=GetSystemMetrics(SM_CXVSCROLL);
 	{
 		m_ColumnOffsets.resize(columnWidths.size());
@@ -3687,8 +3768,8 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 			int pane=(m_bTwoColumns && item.column>=m_Pane2Column)?1:0;
 			if (maxh[pane]<item.itemRect.bottom)
 				maxh[pane]=item.itemRect.bottom;
-			if ((item.column==0 || !m_bTwoColumns) && column0Height<item.itemRect.bottom)
-				column0Height=item.itemRect.bottom;
+			if ((item.column==scrollColumn || !m_bTwoColumns) && scrollHeight<item.itemRect.bottom)
+				scrollHeight=item.itemRect.bottom;
 		}
 
 		if (bInline)
@@ -4064,9 +4145,9 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 	}
 
 	// create pager
-	if (!bMultiColumn && column0Height>maxHeight[0] && m_ScrollCount>0 && (m_bSubMenu || !s_bWin7Style))
+	if (!bMultiColumn && scrollHeight>maxHeight[0] && m_ScrollCount>0 && (m_bSubMenu || !s_bWin7Style))
 	{
-		int d=column0Height-maxHeight[0];
+		int d=scrollHeight-maxHeight[0];
 		m_ScrollHeight=m_Items[m_ScrollCount-1].itemRect.bottom-d-m_rContent.top;
 		if (m_ScrollHeight<=0)
 		{

@@ -55,6 +55,7 @@ static StdMenuItem g_StdMenu[]=
 	{L"switch_user",MENU_SWITCHUSER},
 	{L"lock",MENU_LOCK},
 	{L"*recent_programs",MENU_RECENT_PROGRAMS},
+	{L"*pinned_programs",MENU_PINNED_PROGRAMS},
 	{L"search_box",MENU_SEARCH_BOX},
 	{L"*apps",MENU_APPS},
 
