@@ -455,7 +455,7 @@ private:
 			drawType=MenuSkin::COLUMN1_ITEM;
 			column=row=0;
 			memset(&itemRect,0,sizeof(itemRect));
-			bFolder=bLink=bPrograms=bAlignBottom=bBreak=bInline=bInlineFirst=bInlineLast=bSplit=bHasJumpList=bMetroLink=bMetroApp=bBlankSeparator=bNew=bStartScreen=bCustomAccelerator=false;
+			bFolder=bLink=bPrograms=bAlignBottom=bBreak=bInline=bInlineFirst=bInlineLast=bSplit=bHasJumpList=bMetroLink=bMetroApp=bBlankSeparator=bNew=bStartScreen=bCustomAccelerator=bInTopBar=false;
 			priority=0;
 			pItem1=pItem2=NULL;
 			mfuHash=0;
@@ -492,6 +492,7 @@ private:
 		bool bBlankSeparator:1; // this is a blank separator that is the same size as normal items
 		bool bNew:1; // this is a highlighted new item
 		bool bStartScreen:1; // this is the start screen shortcut item
+		bool bInTopBar:1; // a heading drawn in the top bar above its column instead of in the column (HeadingsInTopBar)
 		bool bCustomAccelerator:1; // the accelerator is specified explicitly
 		char priority; // used for sorting of the All Programs menu (0 for Start Menu, 1 for the separator, 2 for the Programs)
 		char drive;
@@ -665,6 +666,7 @@ private:
 	bool m_bTwoColumns;
 	int m_PinnedPosition; // Classic two-column main menu: the pinned programs (items 0..m_ScrollCount) are laid out just before this item. -1 when they come first
 	bool m_bSecondPane; // false when the SecondPane setting gives no column the second-pane look
+	bool m_bSecondPaneFirst; // SecondPane=First: the second pane is the columns before m_Pane2Column, on the left
 	int m_Pane2Column; // first column of the second pane. in the Classic two-column menu, each column break but the last adds a column to the first pane
 	RECT m_rMenu;
 	RECT m_rContent;
@@ -710,6 +712,10 @@ private:
 	void PlacePinnedPrograms( bool bSetPosition );
 	void GetLayoutOrder( std::vector<int> &order ) const;
 	int GetMainColumnGap( void ) const;
+	// in the two-column main menu: is the column part of the second pane
+	bool IsSecondPaneColumn( int column ) const { return m_bTwoColumns && m_bSecondPane && (m_bSecondPaneFirst?column<m_Pane2Column:column>=m_Pane2Column); }
+	// the columns of each pane, as [first,last)
+	void GetPaneColumns( int &first1, int &last1, int &first2, int &last2 ) const;
 
 	// additional commands for the context menu
 	enum
@@ -819,6 +825,7 @@ private:
 	void DragTreeItem( const void *treeItem, bool bApps );
 	void ShowKeyboardCues( bool alt );
 	void SetActiveWindow( void );
+	void DrawBackgroundText( HDC hdcTemp, unsigned int *bits, int totalWidth, const RECT &rc0, const wchar_t *text, DWORD align );
 	void CreateBackground( int width1, int width2, int height1, int height2, int &totalWidth, int &totalHeight, bool bCreateRegion ); // width1/2, height1/2 - the first and second content area
 	void BlendPatterns( unsigned int *bits, int width, int height );
 	void CreateContentRects( int width1, int width2, int height1, int height2, int &totalWidth, int &totalHeight );

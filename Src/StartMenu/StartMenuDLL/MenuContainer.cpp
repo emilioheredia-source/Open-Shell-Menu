@@ -711,6 +711,7 @@ CMenuContainer::CMenuContainer( CMenuContainer *pParent, int index, int options,
 	m_bTwoColumns=false;
 	m_PinnedPosition=-1;
 	m_bSecondPane=true;
+	m_bSecondPaneFirst=false;
 	m_Pane2Column=1;
 	memset(&m_rMenu,0,sizeof(m_rMenu));
 	memset(&m_rContent,0,sizeof(m_rContent));
@@ -1537,15 +1538,29 @@ void CMenuContainer::InsertRecentProgramLists( void )
 		if (m_Items[i].id!=MENU_RECENT_PROGRAMS || !m_Items[i].pStdItem || !(m_Items[i].pStdItem->settings&StdMenuItem::MENU_FLAT_LIST))
 			continue;
 
-		// the list is in the second pane if it comes after the break that starts it: the last break in the Classic two-column menu, the first in the Windows 7 style
-		int pane2Start=-1;
+		// is the list in the second pane: after the last break in the Classic two-column menu (the first in the Windows 7 style),
+		// before the first break with SecondPane=First, never with SecondPane=None
+		int firstBreak=-1, lastBreak=-1;
 		if (!m_bSubMenu && s_Skin.TwoColumns)
 		{
 			for (int j=1;j<(int)m_Items.size();j++)
-				if (m_Items[j].bBreak && (pane2Start<0 || !s_bWin7Style))
-					pane2Start=j;
+				if (m_Items[j].bBreak)
+				{
+					if (firstBreak<0) firstBreak=j;
+					lastBreak=j;
+				}
 		}
-		bool bSecondColumn=(pane2Start>=0 && i>=pane2Start);
+		int secondPane=s_bWin7Style?SECOND_PANE_LAST:GetSettingInt(L"SecondPane");
+		if (secondPane==SECOND_PANE_FIRST && s_bRTL) secondPane=SECOND_PANE_LAST; // right-to-left menus are mirrored already
+		bool bSecondColumn;
+		if (s_bWin7Style)
+			bSecondColumn=(firstBreak>=0 && i>=firstBreak);
+		else if (secondPane==SECOND_PANE_NONE)
+			bSecondColumn=false;
+		else if (secondPane==SECOND_PANE_FIRST)
+			bSecondColumn=(firstBreak>=0 && i<firstBreak);
+		else
+			bSecondColumn=(lastBreak>=0 && i>=lastBreak);
 
 		std::vector<MenuItem> items;
 		if (nRecent>0)
@@ -1641,8 +1656,26 @@ int CMenuContainer::GetMainColumnGap( void ) const
 {
 	int gap=s_Skin.Main_separatorWidth;
 	if (m_bTwoColumns && !s_bWin7Style && GetSettingBool(L"ColumnLines"))
-		gap+=2*(s_Skin.Dpi*8/96);
+		gap+=2*(s_Skin.Dpi*4/96);
 	return gap;
+}
+
+void CMenuContainer::GetPaneColumns( int &first1, int &last1, int &first2, int &last2 ) const
+{
+	int count=(int)m_ColumnOffsets.size();
+	int boundary=m_Pane2Column<count?m_Pane2Column:count;
+	if (!m_bTwoColumns || !m_bSecondPane)
+	{
+		first1=0; last1=count; first2=last2=count;
+	}
+	else if (m_bSecondPaneFirst)
+	{
+		first2=0; last2=boundary; first1=boundary; last1=count;
+	}
+	else
+	{
+		first1=0; last1=boundary; first2=boundary; last2=count;
+	}
 }
 
 void CMenuContainer::UpdateAccelerators( int first, int last )
@@ -3384,17 +3417,27 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 
 	// in the Classic two-column menu the last column break starts the second pane, and any earlier break adds a column to the first pane.
 	// the Windows 7 style keeps using only the first break
+	// HeadingsInTopBar: a heading at the top of a column is drawn in the top bar (see CreateBackground), only when the skin shows the user name there
+	bool bHeadingsInTopBar=m_bTwoColumns && !m_bSubMenu && !s_bWin7Style && s_MenuMode==MODE_NORMAL &&
+		s_Skin.User_name_position.left!=s_Skin.User_name_position.right && GetSettingBool(L"HeadingsInTopBar");
+	for (std::vector<MenuItem>::iterator it=m_Items.begin();it!=m_Items.end();++it)
+		it->bInTopBar=false; // items the layout skips (e.g. while searching) must not keep an old value
+
 	std::vector<int> order; // positions below are in this order (see GetLayoutOrder)
 	GetLayoutOrder(order);
 	int lastBreak=-1;
 	m_bSecondPane=true;
+	m_bSecondPaneFirst=false;
 	if (m_bTwoColumns && !s_bWin7Style)
 	{
 		for (int k=1;k<(int)order.size();k++)
 			if (m_Items[order[k]].bBreak)
 				lastBreak=k;
-		if (GetSettingInt(L"SecondPane")==SECOND_PANE_NONE)
+		int secondPane=GetSettingInt(L"SecondPane");
+		if (secondPane==SECOND_PANE_NONE)
 			m_bSecondPane=false; // every break starts another first-pane column
+		else if (secondPane==SECOND_PANE_FIRST && lastBreak>=0 && !s_bRTL) // right-to-left menus are mirrored already
+			m_bSecondPaneFirst=true; // the first column has the second-pane look, every break starts a first-pane column
 	}
 	m_Pane2Column=1;
 
@@ -3402,13 +3445,13 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 		int row=0, column=0, subColumn=0;
 		int y=0;
 		int maxw=0;
-		int index=0;
+		int index=m_bSecondPaneFirst?1:0;
 		for (int k=0;k<(int)order.size();k++)
 		{
 			int i=order[k];
 			MenuItem &item=m_Items[i];
 
-			if (m_bTwoColumns && index==0 && k>0 && item.bBreak && (column==0 || lastBreak>=0))
+			if (m_bTwoColumns && (index==0 || m_bSecondPaneFirst) && k>0 && item.bBreak && (column==0 || lastBreak>=0))
 			{
 				// start a new column
 				column++;
@@ -3422,7 +3465,9 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 					else
 						y=s_Skin.User_frame_position.x+s_Skin.User_image_padding.y-menuPadding[0].top;
 				}
-				if (m_bSecondPane && (lastBreak<0 || k==lastBreak))
+				if (m_bSecondPaneFirst)
+					index=0; // m_Pane2Column stays 1: the second pane is column 0
+				else if (m_bSecondPane && (lastBreak<0 || k==lastBreak))
 				{
 					index=1;
 					m_Pane2Column=column;
@@ -3535,7 +3580,10 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 				iconSize=g_ItemManager.SMALL_ICON_SIZE;
 			else if (settings.iconSize==MenuSkin::ICON_SIZE_LARGE)
 				iconSize=g_ItemManager.LARGE_ICON_SIZE;
-			if (item.id==MENU_PROGRAMS_TREE)
+			item.bInTopBar=bHeadingsInTopBar && item.id==MENU_SEPARATOR && !item.name.IsEmpty() && y==0;
+			if (item.bInTopBar)
+				h=0; // drawn in the top bar instead
+			else if (item.id==MENU_PROGRAMS_TREE)
 				h=0; // hide it for now
 			else if (!s_bShowTopEmpty && m_Items.size()>1 && (m_Items[i].id==MENU_EMPTY_TOP || (i>0 && m_Items[i-1].id==MENU_EMPTY_TOP)))
 				h=0; // this is the first (Empty) item in the top menu. hide it for now
@@ -3625,7 +3673,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 					y=0;
 				}
 			}
-			else if (item.id==MENU_SEPARATOR && !item.bBlankSeparator && !item.bInline && m_bTwoColumns && index==0 && k+1<(int)order.size() && m_Items[order[k+1]].bBreak)
+			else if (item.id==MENU_SEPARATOR && !item.bBlankSeparator && !item.bInline && m_bTwoColumns && (index==0 || m_bSecondPaneFirst) && k+1<(int)order.size() && m_Items[order[k+1]].bBreak)
 				h=0;
 			item.row=row;
 			item.column=column;
@@ -3677,7 +3725,8 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 		columnWidths[1]=CItemManager::EXTRA_LARGE_ICON_SIZE;
 
 	// calculate width of each column
-	if (!m_bTwoColumns && GetSettingBool(L"SameSizeColumns"))
+	// (SameSizeColumns is for multi-column sub-menus. SameWidthColumns is for the Classic two-column main menu)
+	if ((!m_bTwoColumns && GetSettingBool(L"SameSizeColumns")) || (m_bTwoColumns && !m_bSubMenu && !s_bWin7Style && GetSettingBool(L"SameWidthColumns")))
 	{
 		int maxw=0;
 		for (size_t i=0;i<columnWidths.size();i++)
@@ -3780,7 +3829,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 						item.itemRect.right-=scrollWidth;
 				}
 			}
-			int pane=(m_bTwoColumns && item.column>=m_Pane2Column)?1:0;
+			int pane=IsSecondPaneColumn(item.column)?1:0;
 			if (maxh[pane]<item.itemRect.bottom)
 				maxh[pane]=item.itemRect.bottom;
 			if ((item.column==scrollColumn || !m_bTwoColumns) && scrollHeight<item.itemRect.bottom)
@@ -3885,8 +3934,11 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 		int h2=(maxh[1]<maxHeight[1]?maxh[1]:maxHeight[1]);
 		if (m_bTwoColumns && columnWidths.size()>2)
 		{
-			w1=m_ColumnOffsets[m_Pane2Column-1]+columnWidths[m_Pane2Column-1]; // all columns of the first pane
-			w2=m_bSecondPane?columnWidths[m_Pane2Column]:0;
+			int first1, last1, first2, last2;
+			GetPaneColumns(first1,last1,first2,last2);
+			// the width of each pane: its columns and the gaps between them
+			w1=last1>first1?m_ColumnOffsets[last1-1]+columnWidths[last1-1]-m_ColumnOffsets[first1]:0;
+			w2=last2>first2?m_ColumnOffsets[last2-1]+columnWidths[last2-1]-m_ColumnOffsets[first2]:0;
 
 			if (s_bWin7Style)
 			{
@@ -3963,10 +4015,18 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 			MenuItem &item=m_Items[i];
 			int dx=m_rContent.left;
 			int dy=m_rContent.top;
-			if (m_bTwoColumns && item.column>=m_Pane2Column)
+			if (m_bTwoColumns)
 			{
-				dx=m_rContent2.left-m_ColumnOffsets[m_Pane2Column];
-				dy=m_rContent2.top;
+				// each pane starts at its own content rectangle
+				int first1, last1, first2, last2;
+				GetPaneColumns(first1,last1,first2,last2);
+				if (IsSecondPaneColumn(item.column))
+				{
+					dx=m_rContent2.left-m_ColumnOffsets[first2];
+					dy=m_rContent2.top;
+				}
+				else if (first1<(int)m_ColumnOffsets.size())
+					dx=m_rContent.left-m_ColumnOffsets[first1];
 			}
 			if (item.id==MENU_SHUTDOWN_BUTTON)
 				dx=0;
@@ -3987,7 +4047,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 			m_rContent2.bottom=totalHeight-menuPadding[1].bottom;
 			for (int c=0;c<(int)columnDH.size();c++)
 			{
-				int bottom=(c<m_Pane2Column || s_MenuMode==MODE_SEARCH)?m_rContent.bottom:m_rContent2.bottom;
+				int bottom=(!IsSecondPaneColumn(c) || s_MenuMode==MODE_SEARCH)?m_rContent.bottom:m_rContent2.bottom;
 				columnDH[c]=bottom-columnDH[c];
 				if (!s_bWin7Style && columnDH[c]<0)
 					columnDH[c]=0;
@@ -4222,7 +4282,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 	{
 		for (int i=m_ScrollCount;i<m_OriginalCount;i++)
 		{
-			int bottom=m_Items[i].column<m_Pane2Column?m_rContent.bottom:m_rContent2.bottom;
+			int bottom=IsSecondPaneColumn(m_Items[i].column)?m_rContent2.bottom:m_rContent.bottom;
 			if (m_Items[i].itemRect.bottom>bottom)
 				m_Items[i].itemRect.bottom=m_Items[i].itemRect.top;
 		}
@@ -4274,8 +4334,8 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 		{
 			m_SearchBox.Create(L"EDIT",m_hWnd,itemRect,NULL,WS_CHILD|(s_Skin.Search_frame?WS_BORDER:0)|ES_AUTOHSCROLL|ES_WANTRETURN);
 			SetWindowSubclass(m_SearchBox,SubclassSearchBox,(UINT_PTR)this,0);
-			int index=(m_bTwoColumns && m_Items[m_SearchIndex].column>=m_Pane2Column)?1:0;
-			if (index==1 && (m_SearchIndex==0 || m_Items[m_SearchIndex-1].column<m_Pane2Column))
+			int index=IsSecondPaneColumn(m_Items[m_SearchIndex].column)?1:0;
+			if (index==1 && (m_SearchIndex==0 || !IsSecondPaneColumn(m_Items[m_SearchIndex-1].column)))
 				m_SearchBox.SetFont(s_Skin.ItemSettings[MenuSkin::COLUMN2_ITEM].font);
 			else
 				m_SearchBox.SetFont(s_Skin.ItemSettings[MenuSkin::COLUMN1_ITEM].font);

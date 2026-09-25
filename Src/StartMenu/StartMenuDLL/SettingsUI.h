@@ -24,6 +24,7 @@ enum TSecondPane // SecondPane setting: which column gets the second-pane look i
 {
 	SECOND_PANE_LAST, // the column after the last column break
 	SECOND_PANE_NONE, // no column: all columns look like the first pane
+	SECOND_PANE_FIRST, // the columns before the first column break, drawn on the left
 };
 
 enum TRecentPrograms
