@@ -798,6 +798,10 @@
 #define IDS_SECOND_PANE_LAST_TIP	3698
 #define IDS_SECOND_PANE_NONE		3699
 #define IDS_SECOND_PANE_NONE_TIP	3700
+#define IDS_HEADING_ITEM			3701
+#define IDS_HEADING_TIP				3702
+#define IDS_COLUMN_LINES			3703
+#define IDS_COLUMN_LINES_TIP		3704
 #define IDS_STRING7001                  7001
 #define IDS_STRING7002                  7002
 #define IDS_STRING7003                  7003

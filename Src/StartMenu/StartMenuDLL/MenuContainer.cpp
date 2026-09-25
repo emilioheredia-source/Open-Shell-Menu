@@ -1126,7 +1126,7 @@ void CMenuContainer::AddStandardItems( bool bPlacePinned )
 				if (!bFound && !bEmpty) continue;
 			}
 
-			if (pStdItem->id==MENU_SEPARATOR && menuIdx>0 && m_Items[menuIdx-1].id==MENU_SEPARATOR)
+			if (pStdItem->id==MENU_SEPARATOR && !pStdItem->label && menuIdx>0 && m_Items[menuIdx-1].id==MENU_SEPARATOR)
 			{
 				// prevent double separators unless that's exactly what is requested
 				if (pStdItem>m_pStdItem && pStdItem[-1].id!=MENU_SEPARATOR)
