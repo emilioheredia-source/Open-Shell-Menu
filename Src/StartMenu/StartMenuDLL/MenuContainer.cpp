@@ -2807,8 +2807,8 @@ void CMenuContainer::InitItems( void )
 	}
 	AddStandardItems(true);
 
-	// remove trailing separators
-	while (!m_Items.empty() && m_Items[m_Items.size()-1].id==MENU_SEPARATOR && !m_Items[m_Items.size()-1].bInline)
+	// remove trailing separators, but not headings: a heading over an empty list still starts its column
+	while (!m_Items.empty() && m_Items[m_Items.size()-1].id==MENU_SEPARATOR && !m_Items[m_Items.size()-1].bInline && m_Items[m_Items.size()-1].name.IsEmpty())
 		m_Items.pop_back();
 
 	if (m_Items.empty())
