@@ -420,6 +420,137 @@ end:;
 //	Trace("BlendPatterns: %.3f ms",(int)dt/1000.f);
 }
 
+// Draws text into the background bitmap (bits, totalWidth pixels wide) inside rc0, with the user name's font, color and glow.
+// Used for the user name and for the headings in the top bar (HeadingsInTopBar)
+void CMenuContainer::DrawBackgroundText( HDC hdcTemp, unsigned int *bits, int totalWidth, const RECT &rc0, const wchar_t *text, DWORD align )
+{
+	DTTOPTS opts={sizeof(opts)};
+	int nameWidth=rc0.right-rc0.left;
+	int nameHeight=rc0.bottom-rc0.top;
+	RECT rc={0,0,nameWidth,nameHeight};
+
+	// draw the title
+	BITMAPINFO dib={sizeof(dib)};
+	dib.bmiHeader.biWidth=nameWidth;
+	dib.bmiHeader.biHeight=-nameHeight;
+	dib.bmiHeader.biPlanes=1;
+	dib.bmiHeader.biBitCount=32;
+	dib.bmiHeader.biCompression=BI_RGB;
+
+	HFONT font0=(HFONT)SelectObject(hdcTemp,s_Skin.User_font);
+
+	unsigned int *bits2;
+	HBITMAP bmpText=CreateDIBSection(hdcTemp,&dib,DIB_RGB_COLORS,(void**)&bits2,NULL,0);
+	HGDIOBJ bmp02=SelectObject(hdcTemp,bmpText);
+	FillRect(hdcTemp,&rc,(HBRUSH)GetStockObject(BLACK_BRUSH));
+
+	if (s_Theme && s_Skin.User_glow_size>0)
+	{
+		InflateRect(&rc,-s_Skin.User_glow_size,-s_Skin.User_glow_size);
+		// draw the glow
+		opts.dwFlags=DTT_COMPOSITED|DTT_TEXTCOLOR|DTT_GLOWSIZE;
+		opts.crText=0xFFFFFF;
+		opts.iGlowSize=s_Skin.User_glow_size;
+		DrawThemeTextEx(s_Theme,hdcTemp,0,0,text,-1,align|DT_VCENTER|DT_NOPREFIX|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOCLIP,&rc,&opts);
+		SelectObject(hdcTemp,bmp02); // deselect bmpText so all the GDI operations get flushed
+
+		// change the glow color
+		int gr=(s_Skin.User_glow_color)&255;
+		int gg=(s_Skin.User_glow_color>>8)&255;
+		int gb=(s_Skin.User_glow_color>>16)&255;
+		for (int y=0;y<nameHeight;y++)
+			for (int x=0;x<nameWidth;x++)
+			{
+				unsigned int &pixel=bits2[y*nameWidth+x];
+				int a1=(pixel>>24);
+				int r1=(pixel>>16)&255;
+				int g1=(pixel>>8)&255;
+				int b1=(pixel)&255;
+				r1=(r1*gr)/255;
+				g1=(g1*gg)/255;
+				b1=(b1*gb)/255;
+				pixel=(a1<<24)|(r1<<16)|(g1<<8)|b1;
+			}
+
+			SelectObject(hdcTemp,bmpText);
+	}
+
+	// draw the text
+	int offset=rc0.top*totalWidth+rc0.left;
+	if (s_bRTL)
+		offset=rc0.top*totalWidth+totalWidth-rc0.right;
+
+	if (s_Theme)
+	{
+		opts.dwFlags=DTT_COMPOSITED|DTT_TEXTCOLOR;
+		opts.crText=s_Skin.User_text_color;
+		DrawThemeTextEx(s_Theme,hdcTemp,0,0,text,-1,align|DT_VCENTER|DT_NOPREFIX|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOCLIP,&rc,&opts);
+		SelectObject(hdcTemp,bmp02);
+
+		// copy the text onto the final bitmap. Combine the alpha channels
+		for (int y=0;y<nameHeight;y++)
+			for (int x=0;x<nameWidth;x++)
+			{
+				unsigned int src=bits2[y*nameWidth+x];
+				int a1=(src>>24);
+				int r1=(src>>16)&255;
+				int g1=(src>>8)&255;
+				int b1=(src)&255;
+
+				unsigned int &dst=bits[y*totalWidth+x+offset];
+
+				int a2=(dst>>24);
+				int r2=(dst>>16)&255;
+				int g2=(dst>>8)&255;
+				int b2=(dst)&255;
+
+				r2=(r2*(255-a1))/255+r1;
+				g2=(g2*(255-a1))/255+g1;
+				b2=(b2*(255-a1))/255+b1;
+				a2=a1+a2-(a1*a2)/255;
+
+				dst=(a2<<24)|(r2<<16)|(g2<<8)|b2;
+			}
+	}
+	else
+	{
+		// draw white text on black background
+		SetTextColor(hdcTemp,0xFFFFFF);
+		SetBkMode(hdcTemp,TRANSPARENT);
+		DrawText(hdcTemp,text,-1,&rc,align|DT_VCENTER|DT_NOPREFIX|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOCLIP);
+		SelectObject(hdcTemp,bmp02);
+
+		// copy the text onto the final bitmap
+		// change the text color
+		int tr=(s_Skin.User_text_color>>16)&255;
+		int tg=(s_Skin.User_text_color>>8)&255;
+		int tb=(s_Skin.User_text_color)&255;
+		for (int y=0;y<nameHeight;y++)
+			for (int x=0;x<nameWidth;x++)
+			{
+				unsigned int src=bits2[y*nameWidth+x];
+				int a1=(src)&255;
+
+				unsigned int &dst=bits[y*totalWidth+x+offset];
+
+				int a2=(dst>>24);
+				int r2=(dst>>16)&255;
+				int g2=(dst>>8)&255;
+				int b2=(dst)&255;
+
+				r2=(r2*(255-a1)+tr*a1)/255;
+				g2=(g2*(255-a1)+tg*a1)/255;
+				b2=(b2*(255-a1)+tb*a1)/255;
+				a2=a1+a2-(a1*a2)/255;
+
+				dst=(a2<<24)|(r2<<16)|(g2<<8)|b2;
+			}
+	}
+
+	DeleteObject(bmpText);
+	SelectObject(hdcTemp,font0);
+}
+
 // Creates the bitmap for the background
 void CMenuContainer::CreateBackground( int width1, int width2, int height1, int height2, int &totalWidth, int &totalHeight, bool bCreateRegion )
 {
@@ -504,6 +635,11 @@ void CMenuContainer::CreateBackground( int width1, int width2, int height1, int 
 	if (m_bTwoColumns && m_bSecondPane)
 		totalWidth2=width2+menuPadding[1].left+menuPadding[1].right;
 	totalWidth=totalWidth1+totalWidth2;
+	// where each pane ends up. normally the caption, the first pane, then the second pane.
+	// with SecondPane=First the background is drawn in the normal order and then mirrored (see below), so the second pane is on the left
+	bool bPane2First=m_bTwoColumns && m_bSecondPane && m_bSecondPaneFirst && totalWidth2>0 && !s_bRTL;
+	int pane1Left=bPane2First?textHeight+totalWidth2:textHeight, pane1Right=bPane2First?totalWidth:totalWidth1;
+	int pane2Left=bPane2First?textHeight:totalWidth1, pane2Right=bPane2First?textHeight+totalWidth2:totalWidth;
 
 	totalHeight=height1+menuPadding[0].top+menuPadding[0].bottom;
 	if (m_bTwoColumns && m_bSecondPane)
@@ -528,6 +664,14 @@ void CMenuContainer::CreateBackground( int width1, int width2, int height1, int 
 		m_rContent2.right=totalWidth-menuPadding[1].right;
 		m_rContent2.top=menuPadding[1].top;
 		m_rContent2.bottom=m_rContent2.top+height2;
+	}
+
+	if (bPane2First)
+	{
+		m_rContent.left=pane1Left+menuPadding[0].left;
+		m_rContent.right=pane1Right-menuPadding[0].right;
+		m_rContent2.left=pane2Left+menuPadding[1].left;
+		m_rContent2.right=pane2Right-menuPadding[1].right;
 	}
 
 	MenuBitmap bmpSearch;
@@ -903,6 +1047,21 @@ void CMenuContainer::CreateBackground( int width1, int width2, int height1, int 
 
 	SelectObject(hdcTemp,bmp02);
 
+	if (bPane2First)
+	{
+		// SecondPane=First: mirror what was drawn so far, so the second pane is on the left and the skin's outer borders stay
+		// on the outside. The emblem mask is mirrored with it. Emblems and text are drawn after this and are not mirrored
+		SelectObject(hdc,bmp0); // deselect m_Bitmap so all the GDI operations get flushed
+		GdiFlush();
+		for (int y=0;y<totalHeight;y++)
+		{
+			std::reverse(bits+y*totalWidth,bits+(y+1)*totalWidth);
+			if (EMaskBits)
+				std::reverse(EMaskBits+y*totalWidth,EMaskBits+(y+1)*totalWidth);
+		}
+		SelectObject(hdc,m_Bitmap);
+	}
+
 	for (int i=0;i<_countof(s_Skin.Main_emblems);i++)
 	{
 		if (s_Skin.Main_emblems[i].GetBitmap())
@@ -926,9 +1085,15 @@ void CMenuContainer::CreateBackground( int width1, int width2, int height1, int 
 			int y0=0, y1=totalHeight;
 
 			if (alignH==MenuSkin::HALIGN_CENTER1 || alignH==MenuSkin::HALIGN_LEFT1 || alignH==MenuSkin::HALIGN_RIGHT1)
-				x1=totalWidth1;
+			{
+				if (bPane2First) x0=pane1Left;
+				x1=pane1Right;
+			}
 			else if (alignH==MenuSkin::HALIGN_CENTER2 || alignH==MenuSkin::HALIGN_LEFT2 || alignH==MenuSkin::HALIGN_RIGHT2)
-				x0=totalWidth1;
+			{
+				x0=pane2Left;
+				if (bPane2First) x1=pane2Right;
+			}
 			if (alignH==MenuSkin::HALIGN_LEFT || alignH==MenuSkin::HALIGN_LEFT1 || alignH==MenuSkin::HALIGN_LEFT2)
 				x1=x0+w;
 			else if (alignH==MenuSkin::HALIGN_RIGHT || alignH==MenuSkin::HALIGN_RIGHT1 || alignH==MenuSkin::HALIGN_RIGHT2)
@@ -1147,11 +1312,11 @@ void CMenuContainer::CreateBackground( int width1, int width2, int height1, int 
 			if (pos.x==MenuSkin::USER_CENTER)
 				pos.x=(totalWidth-frameSize.cx)/2;
 			else if (pos.x==MenuSkin::USER_CENTER1)
-				pos.x=(totalWidth1+textHeight-frameSize.cx)/2;
+				pos.x=(pane1Left+pane1Right-frameSize.cx)/2;
 			else if (pos.x==MenuSkin::USER_CENTER2)
 			{
 				if (totalWidth2>0)
-					pos.x=totalWidth1+(totalWidth2-frameSize.cx)/2;
+					pos.x=(pane2Left+pane2Right-frameSize.cx)/2;
 				else
 					pos.x=(totalWidth-frameSize.cx)/2;
 			}
@@ -1219,9 +1384,15 @@ void CMenuContainer::CreateBackground( int width1, int width2, int height1, int 
 		RECT rc0;
 		int x0=0, x1=totalWidth;
 		if (s_Skin.User_name_align==MenuSkin::HALIGN_CENTER1 || s_Skin.User_name_align==MenuSkin::HALIGN_LEFT1 || s_Skin.User_name_align==MenuSkin::HALIGN_RIGHT1)
-			x1=totalWidth1;
+		{
+			if (bPane2First) x0=pane1Left;
+			x1=pane1Right;
+		}
 		else if (s_Skin.User_name_align==MenuSkin::HALIGN_CENTER2 || s_Skin.User_name_align==MenuSkin::HALIGN_LEFT2 || s_Skin.User_name_align==MenuSkin::HALIGN_RIGHT2)
-			x0=totalWidth1;
+		{
+			x0=pane2Left;
+			if (bPane2First) x1=pane2Right;
+		}
 
 		if (s_Skin.User_name_position.left<0)
 			rc0.left=x1+s_Skin.User_name_position.left;
@@ -1246,135 +1417,34 @@ void CMenuContainer::CreateBackground( int width1, int width2, int height1, int 
 
 		if (Strlen(name)>0)
 		{
-			int nameWidth=rc0.right-rc0.left;
-			int nameHeight=rc0.bottom-rc0.top;
-			RECT rc={0,0,nameWidth,nameHeight};
-
-			// draw the title
-			BITMAPINFO dib={sizeof(dib)};
-			dib.bmiHeader.biWidth=nameWidth;
-			dib.bmiHeader.biHeight=-nameHeight;
-			dib.bmiHeader.biPlanes=1;
-			dib.bmiHeader.biBitCount=32;
-			dib.bmiHeader.biCompression=BI_RGB;
-
-			font0=(HFONT)SelectObject(hdcTemp,s_Skin.User_font);
-
-			unsigned int *bits2;
-			HBITMAP bmpText=CreateDIBSection(hdcTemp,&dib,DIB_RGB_COLORS,(void**)&bits2,NULL,0);
-			HGDIOBJ bmp02=SelectObject(hdcTemp,bmpText);
-			FillRect(hdcTemp,&rc,(HBRUSH)GetStockObject(BLACK_BRUSH));
-
 			DWORD align=DT_CENTER;
 			if (s_Skin.User_name_align==MenuSkin::HALIGN_LEFT || s_Skin.User_name_align==MenuSkin::HALIGN_LEFT1 || s_Skin.User_name_align==MenuSkin::HALIGN_LEFT2)
 				align=s_bRTL?DT_RIGHT:DT_LEFT;
 			else if (s_Skin.User_name_align==MenuSkin::HALIGN_RIGHT || s_Skin.User_name_align==MenuSkin::HALIGN_RIGHT1 || s_Skin.User_name_align==MenuSkin::HALIGN_RIGHT2)
 				align=s_bRTL?DT_LEFT:DT_RIGHT;
-			if (s_Theme && s_Skin.User_glow_size>0)
-			{
-				InflateRect(&rc,-s_Skin.User_glow_size,-s_Skin.User_glow_size);
-				// draw the glow
-				opts.dwFlags=DTT_COMPOSITED|DTT_TEXTCOLOR|DTT_GLOWSIZE;
-				opts.crText=0xFFFFFF;
-				opts.iGlowSize=s_Skin.User_glow_size;
-				DrawThemeTextEx(s_Theme,hdcTemp,0,0,name,-1,align|DT_VCENTER|DT_NOPREFIX|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOCLIP,&rc,&opts);
-				SelectObject(hdcTemp,bmp02); // deselect bmpText so all the GDI operations get flushed
+			DrawBackgroundText(hdcTemp,bits,totalWidth,rc0,name,align);
+		}
 
-				// change the glow color
-				int gr=(s_Skin.User_glow_color)&255;
-				int gg=(s_Skin.User_glow_color>>8)&255;
-				int gb=(s_Skin.User_glow_color>>16)&255;
-				for (int y=0;y<nameHeight;y++)
-					for (int x=0;x<nameWidth;x++)
-					{
-						unsigned int &pixel=bits2[y*nameWidth+x];
-						int a1=(pixel>>24);
-						int r1=(pixel>>16)&255;
-						int g1=(pixel>>8)&255;
-						int b1=(pixel)&255;
-						r1=(r1*gr)/255;
-						g1=(g1*gg)/255;
-						b1=(b1*gb)/255;
-						pixel=(a1<<24)|(r1<<16)|(g1<<8)|b1;
-					}
-
-					SelectObject(hdcTemp,bmpText);
-			}
-
-			// draw the text
-			int offset=rc0.top*totalWidth+rc0.left;
-			if (s_bRTL)
-				offset=rc0.top*totalWidth+totalWidth-rc0.right;
-
-			if (s_Theme)
-			{
-				opts.dwFlags=DTT_COMPOSITED|DTT_TEXTCOLOR;
-				opts.crText=s_Skin.User_text_color;
-				DrawThemeTextEx(s_Theme,hdcTemp,0,0,name,-1,align|DT_VCENTER|DT_NOPREFIX|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOCLIP,&rc,&opts);
-				SelectObject(hdcTemp,bmp02);
-
-				// copy the text onto the final bitmap. Combine the alpha channels
-				for (int y=0;y<nameHeight;y++)
-					for (int x=0;x<nameWidth;x++)
-					{
-						unsigned int src=bits2[y*nameWidth+x];
-						int a1=(src>>24);
-						int r1=(src>>16)&255;
-						int g1=(src>>8)&255;
-						int b1=(src)&255;
-
-						unsigned int &dst=bits[y*totalWidth+x+offset];
-
-						int a2=(dst>>24);
-						int r2=(dst>>16)&255;
-						int g2=(dst>>8)&255;
-						int b2=(dst)&255;
-
-						r2=(r2*(255-a1))/255+r1;
-						g2=(g2*(255-a1))/255+g1;
-						b2=(b2*(255-a1))/255+b1;
-						a2=a1+a2-(a1*a2)/255;
-
-						dst=(a2<<24)|(r2<<16)|(g2<<8)|b2;
-					}
-			}
-			else
-			{
-				// draw white text on black background
-				SetTextColor(hdcTemp,0xFFFFFF);
-				SetBkMode(hdcTemp,TRANSPARENT);
-				DrawText(hdcTemp,name,-1,&rc,align|DT_VCENTER|DT_NOPREFIX|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOCLIP);
-				SelectObject(hdcTemp,bmp02);
-
-				// copy the text onto the final bitmap
-				// change the text color
-				int tr=(s_Skin.User_text_color>>16)&255;
-				int tg=(s_Skin.User_text_color>>8)&255;
-				int tb=(s_Skin.User_text_color)&255;
-				for (int y=0;y<nameHeight;y++)
-					for (int x=0;x<nameWidth;x++)
-					{
-						unsigned int src=bits2[y*nameWidth+x];
-						int a1=(src)&255;
-
-						unsigned int &dst=bits[y*totalWidth+x+offset];
-
-						int a2=(dst>>24);
-						int r2=(dst>>16)&255;
-						int g2=(dst>>8)&255;
-						int b2=(dst)&255;
-
-						r2=(r2*(255-a1)+tr*a1)/255;
-						g2=(g2*(255-a1)+tg*a1)/255;
-						b2=(b2*(255-a1)+tb*a1)/255;
-						a2=a1+a2-(a1*a2)/255;
-
-						dst=(a2<<24)|(r2<<16)|(g2<<8)|b2;
-					}
-			}
-
-			DeleteObject(bmpText);
-			SelectObject(hdcTemp,font0);
+		// headings in the top bar, above their columns, at the height of the user name
+		int first1, last1, first2, last2;
+		GetPaneColumns(first1,last1,first2,last2);
+		int gap=GetMainColumnGap();
+		for (std::vector<MenuItem>::const_iterator it=m_Items.begin();it!=m_Items.end();++it)
+		{
+			if (!it->bInTopBar || it->column>=(int)m_ColumnOffsets.size())
+				continue;
+			bool bPane2=IsSecondPaneColumn(it->column);
+			int first=bPane2?first2:first1, last=bPane2?last2:last1;
+			const RECT &content=bPane2?m_rContent2:m_rContent;
+			RECT rc=rc0;
+			rc.left=content.left+m_ColumnOffsets[it->column]-m_ColumnOffsets[first]+s_Skin.ItemSettings[MenuSkin::COLUMN1_ITEM].iconPadding.left;
+			rc.right=it->column+1<last?content.left+m_ColumnOffsets[it->column+1]-m_ColumnOffsets[first]-gap:content.right;
+			if (rc.left<0) rc.left=0;
+			if (rc.right>totalWidth) rc.right=totalWidth;
+			if (rc.top<0) rc.top=0;
+			if (rc.bottom>totalHeight) rc.bottom=totalHeight;
+			if (rc.right>rc.left && rc.bottom>rc.top)
+				DrawBackgroundText(hdcTemp,bits,totalWidth,rc,it->name,s_bRTL?DT_RIGHT:DT_LEFT);
 		}
 	}
 
@@ -2444,17 +2514,29 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 
 	// draw vertical separators (between the columns of a sub-menu, or of the first pane of the main menu.
 	// the separator between the two panes is part of the background)
-	size_t separatedColumns=m_bSubMenu?m_ColumnOffsets.size():(m_bTwoColumns?(size_t)m_Pane2Column:0);
-	if (separatedColumns>1)
+	// separators go before the columns sepFirst..sepLast-1. main menu items are placed relative to the first column of their pane
+	int sepFirst=1, sepLast=0, sepBase=0;
+	if (m_bSubMenu)
+		sepLast=(int)m_ColumnOffsets.size();
+	else if (m_bTwoColumns)
+	{
+		int first1, last1, first2, last2;
+		GetPaneColumns(first1,last1,first2,last2);
+		sepFirst=first1+1;
+		sepLast=last1;
+		if (first1<(int)m_ColumnOffsets.size())
+			sepBase=m_ColumnOffsets[first1];
+	}
+	if (sepFirst<sepLast)
 	{
 		if (bmpSeparatorV.GetBitmap())
 		{
 			HGDIOBJ bmp0=SelectObject(hdc2,bmpSeparatorV.GetBitmap());
 			RECT rSrc={0,0,sepWidth,sepSlicesY[0]+sepSlicesY[1]+sepSlicesY[2]};
 			RECT rMargins={0,sepSlicesY[0],0,sepSlicesY[2]};
-			for (size_t i=1;i<separatedColumns;i++)
+			for (int i=sepFirst;i<sepLast;i++)
 			{
-				int x=m_rContent.left+m_ColumnOffsets[i];
+				int x=m_rContent.left+m_ColumnOffsets[i]-sepBase;
 				RECT rc={x-sepWidth,m_rContent.top,x,m_rContent.bottom};
 				MarginsBlit(hdc2,hdc,rSrc,rc,rMargins,bmpSeparatorV.bIs32);
 			}
@@ -2473,9 +2555,9 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 			{
 				offset=(sepWidth-2)/2;
 			}
-			for (size_t i=1;i<separatedColumns;i++)
+			for (int i=sepFirst;i<sepLast;i++)
 			{
-				int x=m_rContent.left+m_ColumnOffsets[i]+offset;
+				int x=m_rContent.left+m_ColumnOffsets[i]-sepBase+offset;
 				RECT rc={x-sepWidth,m_rContent.top,x,m_rContent.bottom};
 				if (s_Theme)
 					DrawThemeBackground(s_Theme,hdc,TP_SEPARATOR,TS_NORMAL,&rc,NULL);
@@ -2487,7 +2569,7 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 
 	// ColumnLines: a thin line in the middle of the gap between the columns of the main menu's first pane,
 	// in the item text color at 25% opacity. For skins whose own column separator doesn't show (like Immersive)
-	if (!m_bSubMenu && m_bTwoColumns && !s_bWin7Style && separatedColumns>1 && GetSettingBool(L"ColumnLines"))
+	if (!m_bSubMenu && m_bTwoColumns && !s_bWin7Style && sepFirst<sepLast && GetSettingBool(L"ColumnLines"))
 	{
 		COLORREF color=s_Skin.ItemSettings[MenuSkin::COLUMN1_ITEM].textColors[0];
 		unsigned int alpha=64;
@@ -2509,9 +2591,9 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 			int gap=GetMainColumnGap();
 			HGDIOBJ bmp0=SelectObject(hdc2,bmpLine);
 			BLENDFUNCTION func={AC_SRC_OVER,0,255,AC_SRC_ALPHA};
-			for (size_t i=1;i<separatedColumns;i++)
+			for (int i=sepFirst;i<sepLast;i++)
 			{
-				int x=m_rContent.left+m_ColumnOffsets[i]-(gap+width)/2; // the middle of the gap
+				int x=m_rContent.left+m_ColumnOffsets[i]-sepBase-(gap+width)/2; // the middle of the gap
 				AlphaBlend(hdc,x,m_rContent.top,width,m_rContent.bottom-m_rContent.top,hdc2,0,0,1,1,func);
 			}
 			SelectObject(hdc2,bmp0);

@@ -802,6 +802,12 @@
 #define IDS_HEADING_TIP				3702
 #define IDS_COLUMN_LINES			3703
 #define IDS_COLUMN_LINES_TIP		3704
+#define IDS_SECOND_PANE_FIRST		3705
+#define IDS_SECOND_PANE_FIRST_TIP	3706
+#define IDS_SAME_WIDTH				3707
+#define IDS_SAME_WIDTH_TIP			3708
+#define IDS_HEADINGS_TOP			3709
+#define IDS_HEADINGS_TOP_TIP		3710
 #define IDS_STRING7001                  7001
 #define IDS_STRING7002                  7002
 #define IDS_STRING7003                  7003
