@@ -112,7 +112,7 @@ BEGIN
     LTEXT           "This skin is used by the cascading All Programs menu in the Windows start menu",IDC_STATICALLPROGS,7,150,297,8
 END
 
-IDD_CUSTOMMENU DIALOGEX 0, 0, 249, 236
+IDD_CUSTOMMENU DIALOGEX 0, 0, 249, 252
 STYLE DS_SETFONT | DS_CENTER | WS_POPUP | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
 CAPTION "Edit Menu Item (%s)"
 FONT 9, "Segoe UI", 400, 0, 0x0
@@ -145,9 +145,13 @@ BEGIN
     CONTROL         "Place items first",IDC_CHECKITEMSFIRST,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,130,168,69,10
     CONTROL         "Hide extensions",IDC_CHECKNOEXT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,130,181,72,10
     CONTROL         "Show as a list",IDC_CHECKFLATLIST,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,130,194,112,10
-    PUSHBUTTON      "Restore Defaults",IDC_BUTTONRESET,7,215,90,14
-    DEFPUSHBUTTON   "OK",IDOK,135,215,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,192,215,50,14
+    LTEXT           "Heading text:",IDC_STATICHEADING,7,209,46,12,SS_CENTERIMAGE
+    COMBOBOX        IDC_COMBOHEADINGSIZE,55,209,60,60,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Bold",IDC_CHECKHEADINGBOLD,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,130,210,40,10
+    CONTROL         "Italic",IDC_CHECKHEADINGITALIC,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,175,210,40,10
+    PUSHBUTTON      "Restore Defaults",IDC_BUTTONRESET,7,231,90,14
+    DEFPUSHBUTTON   "OK",IDOK,135,231,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,192,231,50,14
 END
 
 IDD_STYLESETTINGS DIALOGEX 0, 0, 362, 249
@@ -156,7 +160,7 @@ FONT 9, "Segoe UI", 400, 0, 0x0
 BEGIN
     LTEXT           "Select the style for the start menu.",IDC_STATICTITLE,7,7,291,10
     CONTROL         "Classic style",IDC_RADIO_CLASSIC,"Button",BS_AUTORADIOBUTTON,7,18,52,10
-    CONTROL         "Classic with two columns",IDC_RADIO_TWO_COLUMNS,"Button",BS_AUTORADIOBUTTON,95,18,93,10
+    CONTROL         "Classic with columns",IDC_RADIO_TWO_COLUMNS,"Button",BS_AUTORADIOBUTTON,95,18,93,10
     CONTROL         "Windows 7 style",IDC_RADIO_WIN7,"Button",BS_AUTORADIOBUTTON,219,18,65,10
     CONTROL         120,IDC_STATIC_CLASSIC,"Static",SS_BITMAP | SS_NOTIFY | SS_REALSIZEIMAGE,7,28,69,120
     CONTROL         121,IDC_STATIC_TWO_COLUMNS,"Static",SS_BITMAP | SS_NOTIFY | SS_REALSIZEIMAGE,94,28,103,120
@@ -755,8 +759,8 @@ END
 STRINGTABLE 
 BEGIN
     IDS_SEPARATOR_TIP       "This item separates items in the menu"
-    IDS_BREAK_TIP           "(only for two-column main menus) marks the start of the second column"
-    IDS_PADDING_TIP         "(only for two-column main menus) moves the rest of the items in the column to the bottom"
+    IDS_BREAK_TIP           "(only for the Classic with columns style) starts another column of the main menu"
+    IDS_PADDING_TIP         "(only for the Classic with columns style) moves the rest of the items in the column to the bottom"
     IDS_PROGRAMS_TIP        "The Programs folder - contains all installed programs"
     IDS_FAVORITES_TIP       "The Favorites folder"
     IDS_DOCUMENTS_TIP       "Shows the recent documents"
@@ -965,7 +969,7 @@ BEGIN
     IDS_CP_CATEGORIES_TIP   "When this is checked, the Control Panel will open in Categories view"
     IDS_CLASSIC_STYLE_TIP   "The Classic style has a cascading Programs menu. It gives you unlimited freedom to arrange the menu items in any configuration."
     IDS_TWO_COLUMN_STYLE_TIP 
-                            "This style has 2 columns and fits more items. You can arrange the menu items in any configuration."
+                            "This style has several columns and fits more items. You can arrange the menu items in any configuration."
     IDS_WIN7_STYLE_TIP      "The Windows 7 style shows the Programs list and the search results inside the menu. It offers limited customizability."
     IDS_SHUTDOWN_COMMAND    "Shutdown command"
     IDS_SHUTDOWN_COMMAND_TIP 
@@ -1075,26 +1079,30 @@ BEGIN
     IDS_MENU_GLASS_TIP      "Check this to use glass transparency (requires the Aero Glass mod to be installed)"
     IDS_MAIN_MENU_SETTINGS  "Main Menu"
 	IDS_BUTTON_OFFSET		"Button offset"
-	IDS_HEADING_ITEM	"Heading"
-	IDS_HEADING_TIP	"A separator that shows its label as a heading, for example above the pinned or the recent programs"
-	IDS_SAME_WIDTH	"Same width for all columns"
-	IDS_SAME_WIDTH_TIP	"All columns of the main menu are as wide as the widest one"
-	IDS_HEADINGS_TOP	"Headings in the top bar"
-	IDS_HEADINGS_TOP_TIP	"A heading at the top of a column is shown in the top bar above that column, next to the user name. Needs a skin that shows the user name"
-	IDS_COLUMN_LINES	"Column lines"
-	IDS_COLUMN_LINES_TIP	"Draws a thin line between the columns of the main menu, for skins that don't draw one"
-	IDS_SECOND_PANE	"Second pane look"
-	IDS_SECOND_PANE_TIP	"Which column of the menu uses the skin's second (right) pane look"
-	IDS_SECOND_PANE_LAST	"Last column"
-	IDS_SECOND_PANE_LAST_TIP	"The column after the last column break looks like the second pane (the default)"
-	IDS_SECOND_PANE_FIRST	"First column"
-	IDS_SECOND_PANE_FIRST_TIP	"The column before the first column break looks like the second pane and is drawn on the left"
-	IDS_SECOND_PANE_NONE	"None"
-	IDS_SECOND_PANE_NONE_TIP	"All columns look like the first pane. Column breaks only start new columns"
-	IDS_PINNED_ITEM	"Pinned programs"
-	IDS_PINNED_ITEM_TIP	"Places the pinned programs here, as a list. Without this item they are at the top of the first column"
-	IDS_FLAT_LIST_TIP	"The recent programs will appear in the menu as a list, in place of this item, instead of as a sub-menu"
 	IDS_BUTTON_OFFSET_TIP	"Offset the start button horizontally by the amount of pixels specified"
+    IDS_FLAT_LIST_TIP       "The recent programs will appear in the menu as a list, in place of this item, instead of as a sub-menu"
+    IDS_PINNED_ITEM         "Pinned programs"
+    IDS_PINNED_ITEM_TIP     "Places the pinned programs here, as a list. Without this item they are at the top of the first column"
+    IDS_HEADING_ITEM        "Heading"
+    IDS_HEADING_TIP         "A separator that shows its label as a heading, for example above the pinned or the recent programs"
+    IDS_HEADING_NORMAL      "Normal"
+    IDS_HEADING_SMALL       "Small"
+    IDS_HEADING_LARGE       "Large"
+    IDS_SECOND_PANE         "Second pane look"
+    IDS_SECOND_PANE_TIP     "Which column of the menu uses the skin's second (right) pane look"
+    IDS_SECOND_PANE_LAST    "Last column"
+    IDS_SECOND_PANE_LAST_TIP 
+                            "The column after the last column break looks like the second pane (the default)"
+    IDS_SECOND_PANE_NONE    "None"
+    IDS_SECOND_PANE_NONE_TIP 
+                            "All columns look like the first pane. Column breaks only start new columns"
+    IDS_SECOND_PANE_FIRST   "First column"
+    IDS_SECOND_PANE_FIRST_TIP 
+                            "The column before the first column break looks like the second pane and is drawn on the left"
+    IDS_COLUMN_LINES        "Column lines"
+    IDS_COLUMN_LINES_TIP    "Draws a thin line between the columns of the main menu, for skins that don't draw one"
+    IDS_SAME_WIDTH          "Same width for all columns"
+    IDS_SAME_WIDTH_TIP      "All columns of the main menu are as wide as the widest one"
 END
 
 STRINGTABLE 

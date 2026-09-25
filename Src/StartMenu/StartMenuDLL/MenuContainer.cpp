@@ -396,6 +396,7 @@ CUserWindow CMenuContainer::s_UserPicture;
 RECT CMenuContainer::s_UserPictureRect;
 int CMenuContainer::s_ProgramsScrollPos;
 HBITMAP CMenuContainer::s_ArrowsBitmap;
+std::vector<CMenuContainer::HeadingFont> CMenuContainer::s_HeadingFonts;
 unsigned int CMenuContainer::s_LastArrowColor;
 char CMenuContainer::s_HasMoreResults;
 int CMenuContainer::s_ProgramsWidth, CMenuContainer::s_JumplistWidth;
@@ -712,7 +713,9 @@ CMenuContainer::CMenuContainer( CMenuContainer *pParent, int index, int options,
 	m_PinnedPosition=-1;
 	m_bSecondPane=true;
 	m_bSecondPaneFirst=false;
-	m_Pane2Column=1;
+	m_Pane2Column=1; // the first column is the first pane, the rest the second pane (the layout sets it from the column breaks)
+	memset(m_PaneColumns,0,sizeof(m_PaneColumns));
+	m_bColumnLines=false;
 	memset(&m_rMenu,0,sizeof(m_rMenu));
 	memset(&m_rContent,0,sizeof(m_rContent));
 	memset(&m_rContent2,0,sizeof(m_rContent2));
@@ -1197,18 +1200,14 @@ void CMenuContainer::AddStandardItems( bool bPlacePinned )
 			item.bInlineFirst=bInlineFirst;
 			bAlignBottom=bInlineFirst=false;
 
-			if (pStdItem->id==MENU_PINNED_PROGRAMS)
+			bool bPinned=(pStdItem->id==MENU_PINNED_PROGRAMS);
+			bool bRecentList=(pStdItem->id==MENU_RECENT_PROGRAMS && (pStdItem->settings&StdMenuItem::MENU_FLAT_LIST));
+			if (bPinned || bRecentList)
 			{
-				// only the Classic two-column main menu can place its pinned programs. see PlacePinnedPrograms
-				if (m_bSubMenu || s_bWin7Style || pInlineParent)
+				// a placeholder, replaced once all other items are known (InsertRecentProgramLists, PlacePinnedPrograms).
+				// only the Classic main menu can place its pinned programs
+				if (pInlineParent || (bPinned && (m_bSubMenu || s_bWin7Style)))
 					continue;
-				m_Items.insert(m_Items.begin()+menuIdx,1,item);
-				menuIdx++;
-				continue;
-			}
-			if (pStdItem->id==MENU_RECENT_PROGRAMS && (pStdItem->settings&StdMenuItem::MENU_FLAT_LIST) && !pInlineParent)
-			{
-				// placeholder, replaced by the recent programs in InsertRecentProgramLists once all other items are known
 				m_Items.insert(m_Items.begin()+menuIdx,1,item);
 				menuIdx++;
 				continue;
@@ -1524,119 +1523,139 @@ void CMenuContainer::AddStandardItems( bool bPlacePinned )
 	}
 }
 
-// Replaces each Recent Programs item that has MENU_FLAT_LIST with the recent programs themselves.
-// This runs after all other items are added, because GetRecentPrograms skips programs already in the main menu.
+// The number of recent programs to show
+int CMenuContainer::GetRecentProgramCount( void )
+{
+	// the sign of MaxRecentPrograms only picks the order
+	int count=GetSettingInt(L"MaxRecentPrograms");
+	if (count<0) count=-count;
+	if (count>MRU_PROGRAMS_COUNT) count=MRU_PROGRAMS_COUNT;
+	return count;
+}
+
+// Lets the items that have a jump list open it as a split sub-menu
+void CMenuContainer::SetJumplistFlags( std::vector<MenuItem> &items )
+{
+	for (std::vector<MenuItem>::iterator it=items.begin();it!=items.end();++it)
+	{
+		MenuItem &item=*it;
+		if (!item.bLink || item.bFolder || !item.pItem1) continue;
+		CItemManager::RWLock lock(&g_ItemManager,false,CItemManager::RWLOCK_ITEMS);
+		item.bFolder=(!item.pItemInfo->GetAppid().IsEmpty() && HasJumplist(item.pItemInfo->GetAppid()));
+		item.bHasJumpList=item.bFolder;
+		item.bSplit=item.bFolder;
+	}
+}
+
+// The SecondPane setting in effect
+TSecondPane CMenuContainer::GetSecondPaneMode( void )
+{
+	// the Windows 7 style always uses the last column, and right-to-left menus are mirrored already
+	if (s_bWin7Style) return SECOND_PANE_LAST;
+	TSecondPane mode=(TSecondPane)GetSettingInt(L"SecondPane");
+	if (mode==SECOND_PANE_FIRST && s_bRTL) return SECOND_PANE_LAST;
+	return mode;
+}
+
+// Is the item at index in the second pane, going by the column breaks before and after it (for items added before the layout)
+bool CMenuContainer::IsInSecondPane( int index )
+{
+	if (m_bSubMenu || !s_Skin.TwoColumns) return false;
+	int firstBreak=-1, lastBreak=-1;
+	for (int i=1;i<(int)m_Items.size();i++)
+	{
+		if (!m_Items[i].bBreak) continue;
+		if (firstBreak<0) firstBreak=i;
+		lastBreak=i;
+	}
+	if (s_bWin7Style) return firstBreak>=0 && index>=firstBreak; // the Windows 7 style uses only the first break
+	switch (GetSecondPaneMode())
+	{
+		case SECOND_PANE_NONE: return false;
+		case SECOND_PANE_FIRST: return firstBreak>=0 && index<firstBreak;
+		default: return lastBreak>=0 && index>=lastBreak;
+	}
+}
+
+// Passes a placeholder's column break and bottom alignment to the item that takes its place
+void CMenuContainer::InheritColumnFlags( const MenuItem &placeholder, MenuItem &item )
+{
+	if (placeholder.bBreak) item.bBreak=true;
+	if (placeholder.bAlignBottom) item.bAlignBottom=true;
+}
+
+// Replaces each Recent Programs item with MENU_FLAT_LIST by the recent programs themselves
 void CMenuContainer::InsertRecentProgramLists( void )
 {
-	int nRecent=GetSettingInt(L"MaxRecentPrograms");
-	if (nRecent<0)
-		nRecent=-nRecent;
-	if (nRecent>MRU_PROGRAMS_COUNT) nRecent=MRU_PROGRAMS_COUNT;
-
+	// this runs after all other items are added, because GetRecentPrograms skips programs that are already in the main menu
+	int count=GetRecentProgramCount();
+	bool bJumplists=!m_bSubMenu && GetSettingBool(L"EnableJumplists");
 	for (int i=0;i<(int)m_Items.size();i++)
 	{
-		if (m_Items[i].id!=MENU_RECENT_PROGRAMS || !m_Items[i].pStdItem || !(m_Items[i].pStdItem->settings&StdMenuItem::MENU_FLAT_LIST))
+		const MenuItem &placeholder=m_Items[i];
+		if (placeholder.id!=MENU_RECENT_PROGRAMS || !placeholder.pStdItem || !(placeholder.pStdItem->settings&StdMenuItem::MENU_FLAT_LIST))
 			continue;
 
-		// is the list in the second pane: after the last break in the Classic two-column menu (the first in the Windows 7 style),
-		// before the first break with SecondPane=First, never with SecondPane=None
-		int firstBreak=-1, lastBreak=-1;
-		if (!m_bSubMenu && s_Skin.TwoColumns)
-		{
-			for (int j=1;j<(int)m_Items.size();j++)
-				if (m_Items[j].bBreak)
-				{
-					if (firstBreak<0) firstBreak=j;
-					lastBreak=j;
-				}
-		}
-		int secondPane=s_bWin7Style?SECOND_PANE_LAST:GetSettingInt(L"SecondPane");
-		if (secondPane==SECOND_PANE_FIRST && s_bRTL) secondPane=SECOND_PANE_LAST; // right-to-left menus are mirrored already
-		bool bSecondColumn;
-		if (s_bWin7Style)
-			bSecondColumn=(firstBreak>=0 && i>=firstBreak);
-		else if (secondPane==SECOND_PANE_NONE)
-			bSecondColumn=false;
-		else if (secondPane==SECOND_PANE_FIRST)
-			bSecondColumn=(firstBreak>=0 && i<firstBreak);
-		else
-			bSecondColumn=(lastBreak>=0 && i>=lastBreak);
-
 		std::vector<MenuItem> items;
-		if (nRecent>0)
-			GetRecentPrograms(items,nRecent,bSecondColumn);
+		if (count>0)
+			GetRecentPrograms(items,count,IsInSecondPane(i));
+		if (bJumplists)
+			SetJumplistFlags(items);
 
-		if (!m_bSubMenu && GetSettingBool(L"EnableJumplists"))
-		{
-			for (std::vector<MenuItem>::iterator it=items.begin();it!=items.end();++it)
-			{
-				MenuItem &item=*it;
-				if (item.bLink && !item.bFolder && item.pItem1)
-				{
-					CItemManager::RWLock lock(&g_ItemManager,false,CItemManager::RWLOCK_ITEMS);
-					item.bFolder=(!item.pItemInfo->GetAppid().IsEmpty() && HasJumplist(item.pItemInfo->GetAppid()));
-					item.bHasJumpList=item.bFolder;
-					item.bSplit=item.bFolder;
-				}
-			}
-		}
-
-		// the placeholder may start a column or be aligned to the bottom. pass that on to whatever takes its place
-		bool bBreak=m_Items[i].bBreak, bAlignBottom=m_Items[i].bAlignBottom;
+		MenuItem copy=placeholder;
 		m_Items.erase(m_Items.begin()+i);
 		m_Items.insert(m_Items.begin()+i,items.begin(),items.end());
 		if (i<(int)m_Items.size())
-		{
-			if (bBreak) m_Items[i].bBreak=true;
-			if (bAlignBottom) m_Items[i].bAlignBottom=true;
-		}
+			InheritColumnFlags(copy,m_Items[i]);
 		i+=(int)items.size()-1; // continue after the inserted items
 	}
 }
 
-// Removes the Pinned Programs placeholders. The first one decides where the pinned programs are laid out in the Classic two-column main menu.
-// The pinned programs stay at the start of m_Items (items 0..m_ScrollCount), because the pager, painting, keyboard and drag and drop rely on it.
-// Only the layout order changes, see GetLayoutOrder
+// Removes the Pinned Programs placeholders and remembers where the first one was (m_PinnedPosition)
 void CMenuContainer::PlacePinnedPrograms( bool bSetPosition )
 {
+	// the pinned programs stay at the start of m_Items (0..m_ScrollCount), because the pager, painting, keyboard and drag and drop
+	// rely on it. only the layout order changes, see GetLayoutOrder
 	for (int i=0;i<(int)m_Items.size();i++)
 	{
 		if (m_Items[i].id!=MENU_PINNED_PROGRAMS)
 			continue;
-		bool bBreak=m_Items[i].bBreak, bAlignBottom=m_Items[i].bAlignBottom;
+		MenuItem placeholder=m_Items[i];
 		m_Items.erase(m_Items.begin()+i);
 		if (bSetPosition && m_PinnedPosition<0 && m_ScrollCount>0)
 		{
 			m_PinnedPosition=i;
-			// the pinned programs take over the placeholder's column break
-			if (bBreak) m_Items[0].bBreak=true;
-			if (bAlignBottom) m_Items[0].bAlignBottom=true;
-			// AddStandardItems aligns its separator after the pinned programs to the bottom when the menu starts with COLUMN_PADDING.
-			// that padding now belongs to the first item laid out after the pinned programs' column
-			if (m_ScrollCount+1<(int)m_Items.size() && m_Items[m_ScrollCount].id==MENU_SEPARATOR && m_Items[m_ScrollCount].bAlignBottom)
-			{
-				m_Items[m_ScrollCount].bAlignBottom=false;
-				m_Items[m_ScrollCount+1].bAlignBottom=true;
-			}
+			InheritColumnFlags(placeholder,m_Items[0]);
+			MovePinnedPadding();
 		}
 		else if (i<(int)m_Items.size())
-		{
-			if (bBreak) m_Items[i].bBreak=true;
-			if (bAlignBottom) m_Items[i].bAlignBottom=true;
-		}
+			InheritColumnFlags(placeholder,m_Items[i]);
 		i--; // continue with the item that took the placeholder's place
 	}
 }
 
-// The order in which InitWindowInternal lays out the items: normally the order of m_Items.
-// With a Pinned Programs item, the items configured before it come first, then the pinned programs and their separator, then the rest
-void CMenuContainer::GetLayoutOrder( std::vector<int> &order ) const
+// Moves the bottom alignment from the separator after the pinned programs to the item laid out first
+void CMenuContainer::MovePinnedPadding( void )
 {
+	// when the menu starts with COLUMN_PADDING, AddStandardItems aligns that separator to the bottom. if the pinned programs
+	// are laid out later, the alignment belongs to the items laid out first instead
+	int separator=m_ScrollCount;
+	if (m_PinnedPosition<=separator+1 || separator+1>=(int)m_Items.size()) return; // the layout order doesn't change
+	if (m_Items[separator].id!=MENU_SEPARATOR || !m_Items[separator].bAlignBottom) return;
+	m_Items[separator].bAlignBottom=false;
+	m_Items[separator+1].bAlignBottom=true;
+}
+
+// The order in which InitWindowInternal lays out the items
+void CMenuContainer::GetLayoutOrder( std::vector<int> &order )
+{
+	// normally the order of m_Items. with a Pinned Programs item, the items configured before it come first,
+	// then the pinned programs and their separator, then the rest
 	int count=(int)m_Items.size();
 	order.resize(count);
 	for (int i=0;i<count;i++)
 		order[i]=i;
-	if (m_PinnedPosition<0 || m_bSubMenu || s_bWin7Style || !m_bTwoColumns || s_MenuMode!=MODE_NORMAL)
+	if (m_PinnedPosition<0 || !IsClassicMainMenu() || s_MenuMode!=MODE_NORMAL)
 		return;
 	int pinnedEnd=m_ScrollCount;
 	if (pinnedEnd<count && m_Items[pinnedEnd].id==MENU_SEPARATOR)
@@ -1651,31 +1670,45 @@ void CMenuContainer::GetLayoutOrder( std::vector<int> &order ) const
 		order[k++]=i;
 }
 
-// The space between two columns of the main menu. With ColumnLines the gap is wider, so the line keeps clear of the icons on both sides
-int CMenuContainer::GetMainColumnGap( void ) const
+// room for the column lines on each side, in pixels at 96 DPI
+const int COLUMN_LINE_MARGIN=4;
+
+// The space between two columns of the main menu, wider with ColumnLines so the line keeps clear of the icons
+int CMenuContainer::GetMainColumnGap( void )
 {
 	int gap=s_Skin.Main_separatorWidth;
-	if (m_bTwoColumns && !s_bWin7Style && GetSettingBool(L"ColumnLines"))
-		gap+=2*(s_Skin.Dpi*4/96);
+	if (m_bColumnLines)
+		gap+=2*(s_Skin.Dpi*COLUMN_LINE_MARGIN/96);
 	return gap;
 }
 
-void CMenuContainer::GetPaneColumns( int &first1, int &last1, int &first2, int &last2 ) const
+// Sets m_PaneColumns from m_Pane2Column once the number of columns is known
+void CMenuContainer::UpdatePaneColumns( void )
 {
 	int count=(int)m_ColumnOffsets.size();
 	int boundary=m_Pane2Column<count?m_Pane2Column:count;
+	PaneColumns all={0,count}, none={count,count}, before={0,boundary}, after={boundary,count};
 	if (!m_bTwoColumns || !m_bSecondPane)
 	{
-		first1=0; last1=count; first2=last2=count;
+		m_PaneColumns[0]=all;
+		m_PaneColumns[1]=none;
 	}
 	else if (m_bSecondPaneFirst)
 	{
-		first2=0; last2=boundary; first1=boundary; last1=count;
+		m_PaneColumns[0]=after;
+		m_PaneColumns[1]=before;
 	}
 	else
 	{
-		first1=0; last1=boundary; first2=boundary; last2=count;
+		m_PaneColumns[0]=before;
+		m_PaneColumns[1]=after;
 	}
+}
+
+// The left edge of a column of the first pane, in window coordinates
+int CMenuContainer::GetFirstPaneColumnX( int column )
+{
+	return m_rContent.left+m_ColumnOffsets[column]-m_ColumnOffsets[m_PaneColumns[0].first];
 }
 
 void CMenuContainer::UpdateAccelerators( int first, int last )
@@ -1784,12 +1817,12 @@ static bool IgnoreUserAssistItem(const UserAssistItem& uaItem)
 	return false;
 }
 
-void CMenuContainer::GetRecentPrograms( std::vector<MenuItem> &items, int maxCount, bool bSecondColumn )
+void CMenuContainer::GetRecentPrograms( std::vector<MenuItem> &items, int maxCount, bool bSecondPane )
 {
 	bool bShowMetro=GetSettingBool(L"RecentMetroApps");
 	const std::vector<MenuItem> &mainItems=s_Menus[0]->m_Items;
 
-	MenuSkin::TIconSize mainIconSize=bSecondColumn?s_Skin.Main2_icon_size:s_Skin.Main_icon_size;
+	MenuSkin::TIconSize mainIconSize=bSecondPane?s_Skin.Main2_icon_size:s_Skin.Main_icon_size;
 	int iconSizeFlag=(!m_bSubMenu && mainIconSize==MenuSkin::ICON_SIZE_LARGE)?CItemManager::INFO_LARGE_ICON:CItemManager::INFO_SMALL_ICON;
 	if (s_RecentPrograms==RECENT_PROGRAMS_RECENT)
 	{
@@ -2737,10 +2770,7 @@ void CMenuContainer::InitItems( void )
 
 	if (m_Options&CONTAINER_RECENT)
 	{
-		int nRecent=GetSettingInt(L"MaxRecentPrograms");
-		if (nRecent<0)
-			nRecent=-nRecent;
-		if (nRecent>MRU_PROGRAMS_COUNT) nRecent=MRU_PROGRAMS_COUNT;
+		int nRecent=GetRecentProgramCount();
 		if (nRecent>0)
 		{
 			// prepend recent programs
@@ -2764,19 +2794,7 @@ void CMenuContainer::InitItems( void )
 	}
 
 	if (!m_bSubMenu && GetSettingBool(L"EnableJumplists"))
-	{
-		for (std::vector<MenuItem>::iterator it=m_Items.begin();it!=m_Items.end();++it)
-		{
-			MenuItem &item=*it;
-			if (item.bLink && !item.bFolder && item.pItem1)
-			{
-				CItemManager::RWLock lock(&g_ItemManager,false,CItemManager::RWLOCK_ITEMS);
-				item.bFolder=(!item.pItemInfo->GetAppid().IsEmpty() && HasJumplist(item.pItemInfo->GetAppid()));
-				item.bHasJumpList=item.bFolder;
-				item.bSplit=item.bFolder;
-			}
-		}
-	}
+		SetJumplistFlags(m_Items);
 
 	m_ScrollCount=(int)m_Items.size();
 	if (m_ScrollCount>0 && m_Items[m_ScrollCount-1].id==MENU_PROGRAMS_TREE)
@@ -3231,6 +3249,52 @@ HBITMAP CMenuContainer::GetArrowsBitmap( unsigned int color )
 	return s_ArrowsBitmap;
 }
 
+// size of the small and large heading text and rows, in percent of the separator's
+const int HEADING_SMALL_PERCENT=85;
+const int HEADING_LARGE_PERCENT=125;
+
+// The MENU_HEADING_ flags of a heading (a separator with a label), 0 for anything else
+unsigned int CMenuContainer::GetHeadingStyle( const MenuItem &item )
+{
+	if (item.id!=MENU_SEPARATOR || !item.pStdItem || item.name.IsEmpty())
+		return 0;
+	return item.pStdItem->settings&StdMenuItem::MENU_HEADING_MASK;
+}
+
+// The font of a heading: the skin's separator font, resized and styled by the item's settings
+HFONT CMenuContainer::GetHeadingFont( const MenuItem &item, HFONT baseFont )
+{
+	// each style is created once and kept in s_HeadingFonts until the menu closes
+	unsigned int style=GetHeadingStyle(item);
+	if (!style || !baseFont)
+		return baseFont;
+	for (std::vector<HeadingFont>::const_iterator it=s_HeadingFonts.begin();it!=s_HeadingFonts.end();++it)
+		if (it->baseFont==baseFont && it->style==style)
+			return it->font;
+
+	LOGFONT lf;
+	if (!GetObject(baseFont,sizeof(lf),&lf))
+		return baseFont;
+	if (style&StdMenuItem::MENU_HEADING_SMALL) lf.lfHeight=lf.lfHeight*HEADING_SMALL_PERCENT/100;
+	if (style&StdMenuItem::MENU_HEADING_LARGE) lf.lfHeight=lf.lfHeight*HEADING_LARGE_PERCENT/100;
+	if (style&StdMenuItem::MENU_HEADING_BOLD) lf.lfWeight=FW_BOLD;
+	if (style&StdMenuItem::MENU_HEADING_ITALIC) lf.lfItalic=TRUE;
+	HeadingFont headingFont={baseFont,style,CreateFontIndirect(&lf)};
+	if (!headingFont.font)
+		return baseFont;
+	s_HeadingFonts.push_back(headingFont);
+	return headingFont.font;
+}
+
+// The row height of a heading, scaled like its text
+int CMenuContainer::GetHeadingHeight( const MenuItem &item, int itemHeight )
+{
+	unsigned int style=GetHeadingStyle(item);
+	if (style&StdMenuItem::MENU_HEADING_SMALL) return itemHeight*HEADING_SMALL_PERCENT/100;
+	if (style&StdMenuItem::MENU_HEADING_LARGE) return itemHeight*HEADING_LARGE_PERCENT/100;
+	return itemHeight;
+}
+
 // Calculate the size and create the background bitmaps
 void CMenuContainer::InitWindow( bool bDontShrink )
 {
@@ -3417,29 +3481,24 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 
 	// in the Classic two-column menu the last column break starts the second pane, and any earlier break adds a column to the first pane.
 	// the Windows 7 style keeps using only the first break
-	// HeadingsInTopBar: a heading at the top of a column is drawn in the top bar (see CreateBackground), only when the skin shows the user name there
-	bool bHeadingsInTopBar=m_bTwoColumns && !m_bSubMenu && !s_bWin7Style && s_MenuMode==MODE_NORMAL &&
-		s_Skin.User_name_position.left!=s_Skin.User_name_position.right && GetSettingBool(L"HeadingsInTopBar");
-	for (std::vector<MenuItem>::iterator it=m_Items.begin();it!=m_Items.end();++it)
-		it->bInTopBar=false; // items the layout skips (e.g. while searching) must not keep an old value
-
 	std::vector<int> order; // positions below are in this order (see GetLayoutOrder)
 	GetLayoutOrder(order);
 	int lastBreak=-1;
 	m_bSecondPane=true;
 	m_bSecondPaneFirst=false;
-	if (m_bTwoColumns && !s_bWin7Style)
+	m_bColumnLines=IsClassicMainMenu() && GetSettingBool(L"ColumnLines");
+	if (IsClassicMainMenu())
 	{
 		for (int k=1;k<(int)order.size();k++)
 			if (m_Items[order[k]].bBreak)
 				lastBreak=k;
-		int secondPane=GetSettingInt(L"SecondPane");
-		if (secondPane==SECOND_PANE_NONE)
+		TSecondPane mode=GetSecondPaneMode();
+		if (mode==SECOND_PANE_NONE)
 			m_bSecondPane=false; // every break starts another first-pane column
-		else if (secondPane==SECOND_PANE_FIRST && lastBreak>=0 && !s_bRTL) // right-to-left menus are mirrored already
+		else if (mode==SECOND_PANE_FIRST && lastBreak>=0)
 			m_bSecondPaneFirst=true; // the first column has the second-pane look, every break starts a first-pane column
 	}
-	m_Pane2Column=1;
+	m_Pane2Column=1; // until a column break says otherwise
 
 	{
 		int row=0, column=0, subColumn=0;
@@ -3580,10 +3639,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 				iconSize=g_ItemManager.SMALL_ICON_SIZE;
 			else if (settings.iconSize==MenuSkin::ICON_SIZE_LARGE)
 				iconSize=g_ItemManager.LARGE_ICON_SIZE;
-			item.bInTopBar=bHeadingsInTopBar && item.id==MENU_SEPARATOR && !item.name.IsEmpty() && y==0;
-			if (item.bInTopBar)
-				h=0; // drawn in the top bar instead
-			else if (item.id==MENU_PROGRAMS_TREE)
+			if (item.id==MENU_PROGRAMS_TREE)
 				h=0; // hide it for now
 			else if (!s_bShowTopEmpty && m_Items.size()>1 && (m_Items[i].id==MENU_EMPTY_TOP || (i>0 && m_Items[i-1].id==MENU_EMPTY_TOP)))
 				h=0; // this is the first (Empty) item in the top menu. hide it for now
@@ -3596,7 +3652,8 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 			{
 				if (!item.name.IsEmpty())
 				{
-					h=settings.itemHeight;
+					h=GetHeadingHeight(item,settings.itemHeight);
+					SelectObject(hdc,GetHeadingFont(item,settings.font));
 					RECT rcText={0,0,0,0};
 					DrawText(hdc,item.name,-1,&rcText,DT_CALCRECT|DT_SINGLELINE|DT_HIDEPREFIX);
 					w=rcText.right;
@@ -3726,7 +3783,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 
 	// calculate width of each column
 	// (SameSizeColumns is for multi-column sub-menus. SameWidthColumns is for the Classic two-column main menu)
-	if ((!m_bTwoColumns && GetSettingBool(L"SameSizeColumns")) || (m_bTwoColumns && !m_bSubMenu && !s_bWin7Style && GetSettingBool(L"SameWidthColumns")))
+	if ((!m_bTwoColumns && GetSettingBool(L"SameSizeColumns")) || (IsClassicMainMenu() && GetSettingBool(L"SameWidthColumns")))
 	{
 		int maxw=0;
 		for (size_t i=0;i<columnWidths.size();i++)
@@ -3794,6 +3851,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 			m_ColumnOffsets[i]=maxw;
 			maxw+=columnWidths[i];
 		}
+		UpdatePaneColumns();
 		columnWidths.push_back(maxw);
 		bool bInline=false;
 		for (int i=0;i<(int)m_Items.size();i++)
@@ -3934,11 +3992,10 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 		int h2=(maxh[1]<maxHeight[1]?maxh[1]:maxHeight[1]);
 		if (m_bTwoColumns && columnWidths.size()>2)
 		{
-			int first1, last1, first2, last2;
-			GetPaneColumns(first1,last1,first2,last2);
 			// the width of each pane: its columns and the gaps between them
-			w1=last1>first1?m_ColumnOffsets[last1-1]+columnWidths[last1-1]-m_ColumnOffsets[first1]:0;
-			w2=last2>first2?m_ColumnOffsets[last2-1]+columnWidths[last2-1]-m_ColumnOffsets[first2]:0;
+			const PaneColumns &pane1=m_PaneColumns[0], &pane2=m_PaneColumns[1];
+			w1=pane1.last>pane1.first?m_ColumnOffsets[pane1.last-1]+columnWidths[pane1.last-1]-m_ColumnOffsets[pane1.first]:0;
+			w2=pane2.last>pane2.first?m_ColumnOffsets[pane2.last-1]+columnWidths[pane2.last-1]-m_ColumnOffsets[pane2.first]:0;
 
 			if (s_bWin7Style)
 			{
@@ -4018,15 +4075,13 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 			if (m_bTwoColumns)
 			{
 				// each pane starts at its own content rectangle
-				int first1, last1, first2, last2;
-				GetPaneColumns(first1,last1,first2,last2);
 				if (IsSecondPaneColumn(item.column))
 				{
-					dx=m_rContent2.left-m_ColumnOffsets[first2];
+					dx=m_rContent2.left-m_ColumnOffsets[m_PaneColumns[1].first];
 					dy=m_rContent2.top;
 				}
-				else if (first1<(int)m_ColumnOffsets.size())
-					dx=m_rContent.left-m_ColumnOffsets[first1];
+				else if (m_PaneColumns[0].first<(int)m_ColumnOffsets.size())
+					dx=m_rContent.left-m_ColumnOffsets[m_PaneColumns[0].first];
 			}
 			if (item.id==MENU_SHUTDOWN_BUTTON)
 				dx=0;
@@ -4052,7 +4107,8 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 				if (!s_bWin7Style && columnDH[c]<0)
 					columnDH[c]=0;
 			}
-			int dh1=columnDH[0], dh2=m_Pane2Column<(int)columnDH.size()?columnDH[m_Pane2Column]:0; // the Windows 7 style trims overlapping items below
+			// only the Windows 7 style trims overlapping items below, and it always has the second pane in column m_Pane2Column
+			int dh1=columnDH[0], dh2=m_Pane2Column<(int)columnDH.size()?columnDH[m_Pane2Column]:0;
 
 			std::vector<bool> bAlign(columnDH.size(),false);
 			for (int i=0;i<m_OriginalCount;i++)
@@ -6495,6 +6551,9 @@ LRESULT CMenuContainer::OnDestroy( UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL
 		g_ItemManager.SaveCacheFile();
 		if (s_ArrowsBitmap) DeleteObject(s_ArrowsBitmap);
 		s_ArrowsBitmap=NULL;
+		for (std::vector<HeadingFont>::const_iterator it=s_HeadingFonts.begin();it!=s_HeadingFonts.end();++it)
+			DeleteObject(it->font);
+		s_HeadingFonts.clear();
 		CloseLog();
 	}
 	if (m_Options&CONTAINER_SEARCH)

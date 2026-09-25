@@ -1061,7 +1061,7 @@ static const CStdCommand g_StdCommands[]={
 	{L"switch_user",IDS_SHUTDOWN_SWITCH,IDS_SWITCH_TIP,L"SwitchUserItem",L"$Menu.SwitchUser",L"$Menu.SwitchUserTip",L"none"},
 	{L"lock",IDS_SHUTDOWN_LOCK,IDS_LOCK_TIP,L"LockItem",L"$Menu.Lock",L"$Menu.LockTip",L"none"},
 	{L"recent_programs",IDS_SHOW_RECENT,IDS_RECENT_TIP,L"RecentPrograms",NULL,NULL,L"none"},
-	{L"heading",IDS_HEADING_ITEM,IDS_HEADING_TIP,L"HeadingItem",L"Heading",NULL,L"none"},
+	{L"heading",IDS_HEADING_ITEM,IDS_HEADING_TIP,L"HeadingItem",NULL,NULL,L"none"},
 	{L"pinned_programs",IDS_PINNED_ITEM,IDS_PINNED_ITEM_TIP,L"PinnedPrograms",NULL,NULL,L"none",NULL,StdMenuItem::MENU_STYLE_CLASSIC2},
 	{L"monitor_off",IDS_MONITOR_OFF_ITEM,IDS_MONITOR_OFF_TIP,L"MonitorOffItem",L"$Menu.MonitorOff",NULL,L"none"},
 	{L"",IDS_CUSTOM_ITEM,IDS_CUSTOM_TIP,L"CustomItem",NULL,NULL,L""},
@@ -1507,10 +1507,12 @@ protected:
 	LRESULT OnReset( WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHandled );
 
 private:
-	int m_Style, m_StyleMask;
+	// FLAT_LIST only applies to the Recent Programs item, and the HEADING_ settings to headings
+	bool IsRecentPrograms( void ) { return m_pItem->pStdCommand && wcscmp(m_pItem->pStdCommand->name,L"recent_programs")==0; }
+	bool IsHeading( void ) { return m_pItem->pStdCommand && wcscmp(m_pItem->pStdCommand->name,L"heading")==0; }
+	void EnableHeadingControls( void );
 
-	// FLAT_LIST only applies to the Recent Programs item
-	bool IsRecentPrograms( void ) const { return m_pItem->pStdCommand && wcscmp(m_pItem->pStdCommand->name,L"recent_programs")==0; }
+	int m_Style, m_StyleMask;
 };
 
 LRESULT CEditMenuDlg::OnInitDialog( UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled )
@@ -1542,6 +1544,14 @@ LRESULT CEditMenuDlg::OnInitDialog( UINT uMsg, WPARAM wParam, LPARAM lParam, BOO
 	CheckDlgButton(IDC_CHECKNOEXT,(m_pItem->settings&StdMenuItem::MENU_NOEXTENSIONS)?BST_CHECKED:BST_UNCHECKED);
 	CheckDlgButton(IDC_CHECKFLATLIST,(m_pItem->settings&StdMenuItem::MENU_FLAT_LIST)?BST_CHECKED:BST_UNCHECKED);
 	GetDlgItem(IDC_CHECKFLATLIST).EnableWindow(IsRecentPrograms());
+	CWindow headingSize=GetDlgItem(IDC_COMBOHEADINGSIZE);
+	headingSize.SendMessage(CB_ADDSTRING,0,(LPARAM)(const wchar_t*)LoadStringEx(IDS_HEADING_NORMAL));
+	headingSize.SendMessage(CB_ADDSTRING,0,(LPARAM)(const wchar_t*)LoadStringEx(IDS_HEADING_SMALL));
+	headingSize.SendMessage(CB_ADDSTRING,0,(LPARAM)(const wchar_t*)LoadStringEx(IDS_HEADING_LARGE));
+	headingSize.SendMessage(CB_SETCURSEL,(m_pItem->settings&StdMenuItem::MENU_HEADING_SMALL)?1:((m_pItem->settings&StdMenuItem::MENU_HEADING_LARGE)?2:0));
+	CheckDlgButton(IDC_CHECKHEADINGBOLD,(m_pItem->settings&StdMenuItem::MENU_HEADING_BOLD)?BST_CHECKED:BST_UNCHECKED);
+	CheckDlgButton(IDC_CHECKHEADINGITALIC,(m_pItem->settings&StdMenuItem::MENU_HEADING_ITALIC)?BST_CHECKED:BST_UNCHECKED);
+	EnableHeadingControls();
 	if (m_pItem->pStdCommand && (wcscmp(m_pItem->pStdCommand->name,L"programs")==0 || wcscmp(m_pItem->pStdCommand->name,L"apps")==0))
 	{
 		CheckDlgButton(IDC_CHECKMULTICOLUMN,BST_CHECKED);
@@ -1690,6 +1700,14 @@ LRESULT CEditMenuDlg::OnOK( WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHan
 	if (IsDlgButtonChecked(IDC_CHECKSPLIT)==BST_CHECKED) m_pItem->settings|=StdMenuItem::MENU_SPLIT_BUTTON;
 	if (IsDlgButtonChecked(IDC_CHECKNOEXT)==BST_CHECKED) m_pItem->settings|=StdMenuItem::MENU_NOEXTENSIONS;
 	if (IsRecentPrograms() && IsDlgButtonChecked(IDC_CHECKFLATLIST)==BST_CHECKED) m_pItem->settings|=StdMenuItem::MENU_FLAT_LIST;
+	if (IsHeading())
+	{
+		int size=(int)SendDlgItemMessage(IDC_COMBOHEADINGSIZE,CB_GETCURSEL);
+		if (size==1) m_pItem->settings|=StdMenuItem::MENU_HEADING_SMALL;
+		if (size==2) m_pItem->settings|=StdMenuItem::MENU_HEADING_LARGE;
+		if (IsDlgButtonChecked(IDC_CHECKHEADINGBOLD)==BST_CHECKED) m_pItem->settings|=StdMenuItem::MENU_HEADING_BOLD;
+		if (IsDlgButtonChecked(IDC_CHECKHEADINGITALIC)==BST_CHECKED) m_pItem->settings|=StdMenuItem::MENU_HEADING_ITALIC;
+	}
 	if (bForceMultiColumn)
 	{
 		// special handling of the Programs menu
@@ -1726,8 +1744,18 @@ LRESULT CEditMenuDlg::OnCommandChanged( WORD wNotifyCode, WORD wID, HWND hWndCtl
 		GetDlgItem(IDC_CHECKMULTICOLUMN).EnableWindow(TRUE);
 	}
 	GetDlgItem(IDC_CHECKFLATLIST).EnableWindow(IsRecentPrograms());
+	EnableHeadingControls();
 	UpdateIcons(IDC_ICONN,0);
 	return 0;
+}
+
+void CEditMenuDlg::EnableHeadingControls( void )
+{
+	BOOL bHeading=IsHeading();
+	GetDlgItem(IDC_STATICHEADING).EnableWindow(bHeading);
+	GetDlgItem(IDC_COMBOHEADINGSIZE).EnableWindow(bHeading);
+	GetDlgItem(IDC_CHECKHEADINGBOLD).EnableWindow(bHeading);
+	GetDlgItem(IDC_CHECKHEADINGITALIC).EnableWindow(bHeading);
 }
 
 LRESULT CEditMenuDlg::OnLinkChanged( WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHandled )
@@ -1885,6 +1913,10 @@ void CCustomMenuDlg::ParseTreeItemExtra( CTreeItem *pItem, CSettingsParser &pars
 		if (_wcsicmp(token,L"SPLIT")==0) pItem->settings|=StdMenuItem::MENU_SPLIT_BUTTON;
 		if (_wcsicmp(token,L"NOEXTENSIONS")==0) pItem->settings|=StdMenuItem::MENU_NOEXTENSIONS;
 		if (_wcsicmp(token,L"FLAT_LIST")==0) pItem->settings|=StdMenuItem::MENU_FLAT_LIST;
+		if (_wcsicmp(token,L"HEADING_SMALL")==0) pItem->settings|=StdMenuItem::MENU_HEADING_SMALL;
+		if (_wcsicmp(token,L"HEADING_LARGE")==0) pItem->settings|=StdMenuItem::MENU_HEADING_LARGE;
+		if (_wcsicmp(token,L"HEADING_BOLD")==0) pItem->settings|=StdMenuItem::MENU_HEADING_BOLD;
+		if (_wcsicmp(token,L"HEADING_ITALIC")==0) pItem->settings|=StdMenuItem::MENU_HEADING_ITALIC;
 	}
 }
 
@@ -1908,6 +1940,10 @@ void CCustomMenuDlg::SerializeItemExtra( CTreeItem *pItem, std::vector<wchar_t> 
 	if (pItem->settings&StdMenuItem::MENU_SPLIT_BUTTON) AppendString(stringBuilder,L"SPLIT|");
 	if (pItem->settings&StdMenuItem::MENU_NOEXTENSIONS) AppendString(stringBuilder,L"NOEXTENSIONS|");
 	if (pItem->settings&StdMenuItem::MENU_FLAT_LIST) AppendString(stringBuilder,L"FLAT_LIST|");
+	if (pItem->settings&StdMenuItem::MENU_HEADING_SMALL) AppendString(stringBuilder,L"HEADING_SMALL|");
+	if (pItem->settings&StdMenuItem::MENU_HEADING_LARGE) AppendString(stringBuilder,L"HEADING_LARGE|");
+	if (pItem->settings&StdMenuItem::MENU_HEADING_BOLD) AppendString(stringBuilder,L"HEADING_BOLD|");
+	if (pItem->settings&StdMenuItem::MENU_HEADING_ITALIC) AppendString(stringBuilder,L"HEADING_ITALIC|");
 	stringBuilder[stringBuilder.size()-1]='\n';
 }
 
@@ -4424,7 +4460,6 @@ CSetting g_Settings[]={
 		{L"FirstColumn",CSetting::TYPE_RADIO,IDS_SECOND_PANE_FIRST,IDS_SECOND_PANE_FIRST_TIP},
 	{L"ColumnLines",CSetting::TYPE_BOOL,IDS_COLUMN_LINES,IDS_COLUMN_LINES_TIP,0,CSetting::FLAG_MENU_CLASSIC2},
 	{L"SameWidthColumns",CSetting::TYPE_BOOL,IDS_SAME_WIDTH,IDS_SAME_WIDTH_TIP,0,CSetting::FLAG_MENU_CLASSIC2},
-	{L"HeadingsInTopBar",CSetting::TYPE_BOOL,IDS_HEADINGS_TOP,IDS_HEADINGS_TOP_TIP,0,CSetting::FLAG_MENU_CLASSIC2},
 	{L"MaxMenuWidth",CSetting::TYPE_INT,IDS_SUBMENU_WIDTH,IDS_SUBMENU_WIDTH_TIP,60},
 	{L"AlignToWorkArea",CSetting::TYPE_BOOL,IDS_ALIGN_WORK_AREA,IDS_ALIGN_WORK_AREA_TIP,0},
 	{L"HorizontalMenuOffset",CSetting::TYPE_INT,IDS_HOR_OFFSET,IDS_HOR_OFFSET_TIP,0},

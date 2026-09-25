@@ -102,6 +102,10 @@
 #define IDC_SKIN_WIN7                   1088
 #define IDC_STATICEDGE2                 1089
 #define IDC_CHECKFLATLIST               1090
+#define IDC_STATICHEADING               1091
+#define IDC_COMBOHEADINGSIZE            1092
+#define IDC_CHECKHEADINGBOLD            1093
+#define IDC_CHECKHEADINGITALIC          1094
 #define IDD_CUSTOMMENU                  3001
 #define IDS_APP_TITLE                   3001
 #define IDD_SKINSETTINGS                3002
@@ -789,25 +793,26 @@
 #define IDS_ALT_ACCELERATORS_TIP        3689
 #define IDS_BUTTON_OFFSET				3690
 #define IDS_BUTTON_OFFSET_TIP			3691
-#define IDS_FLAT_LIST_TIP			3692
-#define IDS_PINNED_ITEM				3693
-#define IDS_PINNED_ITEM_TIP			3694
-#define IDS_SECOND_PANE				3695
-#define IDS_SECOND_PANE_TIP			3696
-#define IDS_SECOND_PANE_LAST		3697
-#define IDS_SECOND_PANE_LAST_TIP	3698
-#define IDS_SECOND_PANE_NONE		3699
-#define IDS_SECOND_PANE_NONE_TIP	3700
-#define IDS_HEADING_ITEM			3701
-#define IDS_HEADING_TIP				3702
-#define IDS_COLUMN_LINES			3703
-#define IDS_COLUMN_LINES_TIP		3704
-#define IDS_SECOND_PANE_FIRST		3705
-#define IDS_SECOND_PANE_FIRST_TIP	3706
-#define IDS_SAME_WIDTH				3707
-#define IDS_SAME_WIDTH_TIP			3708
-#define IDS_HEADINGS_TOP			3709
-#define IDS_HEADINGS_TOP_TIP		3710
+#define IDS_FLAT_LIST_TIP               3692
+#define IDS_PINNED_ITEM                 3693
+#define IDS_PINNED_ITEM_TIP             3694
+#define IDS_HEADING_ITEM                3695
+#define IDS_HEADING_TIP                 3696
+#define IDS_HEADING_NORMAL              3697
+#define IDS_HEADING_SMALL               3698
+#define IDS_HEADING_LARGE               3699
+#define IDS_SECOND_PANE                 3700
+#define IDS_SECOND_PANE_TIP             3701
+#define IDS_SECOND_PANE_LAST            3702
+#define IDS_SECOND_PANE_LAST_TIP        3703
+#define IDS_SECOND_PANE_NONE            3704
+#define IDS_SECOND_PANE_NONE_TIP        3705
+#define IDS_SECOND_PANE_FIRST           3706
+#define IDS_SECOND_PANE_FIRST_TIP       3707
+#define IDS_COLUMN_LINES                3708
+#define IDS_COLUMN_LINES_TIP            3709
+#define IDS_SAME_WIDTH                  3710
+#define IDS_SAME_WIDTH_TIP              3711
 #define IDS_STRING7001                  7001
 #define IDS_STRING7002                  7002
 #define IDS_STRING7003                  7003
@@ -872,7 +877,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        126
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1091
+#define _APS_NEXT_CONTROL_VALUE         1095
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

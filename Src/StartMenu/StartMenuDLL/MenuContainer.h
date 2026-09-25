@@ -25,6 +25,7 @@
 #endif
 
 enum TRecentPrograms;
+enum TSecondPane;
 
 enum TMenuID
 {
@@ -137,6 +138,11 @@ struct StdMenuItem
 		MENU_ITEM_DISABLED  = 0x004000, // the item is disabled
 		MENU_NORECENT       = 0x008000, // don't show recent items in the root menu (because a sub-menu uses MENU_RECENT_ITEMS)
 		MENU_FLAT_LIST      = 0x010000, // show the recent programs as a list in place of the item, instead of a sub-menu
+		MENU_HEADING_SMALL  = 0x020000, // heading text is smaller than the separator font
+		MENU_HEADING_LARGE  = 0x040000, // heading text is larger than the separator font
+		MENU_HEADING_BOLD   = 0x080000, // heading text is bold
+		MENU_HEADING_ITALIC = 0x400000, // heading text is italic (the bits in between are the style bits)
+		MENU_HEADING_MASK   = MENU_HEADING_SMALL|MENU_HEADING_LARGE|MENU_HEADING_BOLD|MENU_HEADING_ITALIC,
 
 		// style
 		MENU_STYLE_CLASSIC1 = 0x100000,
@@ -455,7 +461,7 @@ private:
 			drawType=MenuSkin::COLUMN1_ITEM;
 			column=row=0;
 			memset(&itemRect,0,sizeof(itemRect));
-			bFolder=bLink=bPrograms=bAlignBottom=bBreak=bInline=bInlineFirst=bInlineLast=bSplit=bHasJumpList=bMetroLink=bMetroApp=bBlankSeparator=bNew=bStartScreen=bCustomAccelerator=bInTopBar=false;
+			bFolder=bLink=bPrograms=bAlignBottom=bBreak=bInline=bInlineFirst=bInlineLast=bSplit=bHasJumpList=bMetroLink=bMetroApp=bBlankSeparator=bNew=bStartScreen=bCustomAccelerator=false;
 			priority=0;
 			pItem1=pItem2=NULL;
 			mfuHash=0;
@@ -492,7 +498,6 @@ private:
 		bool bBlankSeparator:1; // this is a blank separator that is the same size as normal items
 		bool bNew:1; // this is a highlighted new item
 		bool bStartScreen:1; // this is the start screen shortcut item
-		bool bInTopBar:1; // a heading drawn in the top bar above its column instead of in the column (HeadingsInTopBar)
 		bool bCustomAccelerator:1; // the accelerator is specified explicitly
 		char priority; // used for sorting of the All Programs menu (0 for Start Menu, 1 for the separator, 2 for the Programs)
 		char drive;
@@ -667,7 +672,13 @@ private:
 	int m_PinnedPosition; // Classic two-column main menu: the pinned programs (items 0..m_ScrollCount) are laid out just before this item. -1 when they come first
 	bool m_bSecondPane; // false when the SecondPane setting gives no column the second-pane look
 	bool m_bSecondPaneFirst; // SecondPane=First: the second pane is the columns before m_Pane2Column, on the left
-	int m_Pane2Column; // first column of the second pane. in the Classic two-column menu, each column break but the last adds a column to the first pane
+	int m_Pane2Column; // where the panes meet: the second pane starts here (or ends here with m_bSecondPaneFirst)
+	struct PaneColumns
+	{
+		int first, last; // [first,last)
+	};
+	PaneColumns m_PaneColumns[2]; // the columns of the first and the second pane, set by InitWindowInternal
+	bool m_bColumnLines; // the ColumnLines setting, for this layout
 	RECT m_rMenu;
 	RECT m_rContent;
 	RECT m_rContent2;
@@ -707,15 +718,22 @@ private:
 	};
 
 	int AddSearchItems( const std::vector<SearchItem> &items, const CString &categoryName, unsigned int categoryHash, int originalCount );
-	void GetRecentPrograms( std::vector<MenuItem> &items, int maxCount, bool bSecondColumn=false );
+	void GetRecentPrograms( std::vector<MenuItem> &items, int maxCount, bool bSecondPane=false );
+	static int GetRecentProgramCount( void );
+	static void SetJumplistFlags( std::vector<MenuItem> &items );
+	static TSecondPane GetSecondPaneMode( void );
+	bool IsInSecondPane( int index );
+	static void InheritColumnFlags( const MenuItem &placeholder, MenuItem &item );
 	void InsertRecentProgramLists( void );
 	void PlacePinnedPrograms( bool bSetPosition );
-	void GetLayoutOrder( std::vector<int> &order ) const;
-	int GetMainColumnGap( void ) const;
-	// in the two-column main menu: is the column part of the second pane
-	bool IsSecondPaneColumn( int column ) const { return m_bTwoColumns && m_bSecondPane && (m_bSecondPaneFirst?column<m_Pane2Column:column>=m_Pane2Column); }
-	// the columns of each pane, as [first,last)
-	void GetPaneColumns( int &first1, int &last1, int &first2, int &last2 ) const;
+	void MovePinnedPadding( void );
+	void GetLayoutOrder( std::vector<int> &order );
+	int GetMainColumnGap( void );
+	void UpdatePaneColumns( void );
+	int GetFirstPaneColumnX( int column );
+	void DrawColumnLines( HDC hdc, HDC hdcTemp, int first, int last );
+	bool IsClassicMainMenu( void ) { return m_bTwoColumns && !m_bSubMenu && !s_bWin7Style; }
+	bool IsSecondPaneColumn( int column ) { return column>=m_PaneColumns[1].first && column<m_PaneColumns[1].last; }
 
 	// additional commands for the context menu
 	enum
@@ -825,7 +843,6 @@ private:
 	void DragTreeItem( const void *treeItem, bool bApps );
 	void ShowKeyboardCues( bool alt );
 	void SetActiveWindow( void );
-	void DrawBackgroundText( HDC hdcTemp, unsigned int *bits, int totalWidth, const RECT &rc0, const wchar_t *text, DWORD align );
 	void CreateBackground( int width1, int width2, int height1, int height2, int &totalWidth, int &totalHeight, bool bCreateRegion ); // width1/2, height1/2 - the first and second content area
 	void BlendPatterns( unsigned int *bits, int width, int height );
 	void CreateContentRects( int width1, int width2, int height1, int height2, int &totalWidth, int &totalHeight );
@@ -940,6 +957,13 @@ private:
 	static int s_TipItem; // the item that needs a tooltip
 	static CMenuContainer *s_pTipMenu;
 	static HBITMAP s_ArrowsBitmap;
+	struct HeadingFont
+	{
+		HFONT baseFont;
+		unsigned int style; // MENU_HEADING_ flags
+		HFONT font;
+	};
+	static std::vector<HeadingFont> s_HeadingFonts; // fonts created for headings, freed when the menu closes
 	static unsigned int s_LastArrowColor;
 	static CComPtr<IFrameworkInputPane> s_pFrameworkInputPane;
 	static CString s_PinFolder;
@@ -987,6 +1011,9 @@ private:
 	void ClearItems( const std::vector<MenuItem>::iterator &begin, const std::vector<MenuItem>::iterator &end );
 	void AddJumpListItems( std::vector<MenuItem> &items );
 	static HBITMAP GetArrowsBitmap( unsigned int color );
+	static unsigned int GetHeadingStyle( const MenuItem &item );
+	static HFONT GetHeadingFont( const MenuItem &item, HFONT baseFont );
+	static int GetHeadingHeight( const MenuItem &item, int itemHeight );
 	static bool CloseProgramsMenu( void );
 	static void HideStartMenu( void );
 	static void SetDropTip( IDataObject *pDataObj, bool bPin );
