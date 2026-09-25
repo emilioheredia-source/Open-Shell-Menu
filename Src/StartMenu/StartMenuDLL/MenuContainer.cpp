@@ -1564,7 +1564,7 @@ bool CMenuContainer::IsInSecondPane( int index )
 	int firstBreak=-1, lastBreak=-1;
 	for (int i=1;i<(int)m_Items.size();i++)
 	{
-		if (!m_Items[i].bBreak) continue;
+		if (!m_Items[i].bBreak || m_Items[i].bOverflow) continue; // overflow columns never change the panes
 		if (firstBreak<0) firstBreak=i;
 		lastBreak=i;
 	}
@@ -1584,6 +1584,17 @@ void CMenuContainer::InheritColumnFlags( const MenuItem &placeholder, MenuItem &
 	if (placeholder.bAlignBottom) item.bAlignBottom=true;
 }
 
+// Starts a new column after every rows items of items[first..last)
+void CMenuContainer::SetOverflowBreaks( std::vector<MenuItem> &items, int first, int last, int rows )
+{
+	if (rows<=0) return;
+	for (int i=first+rows;i<last;i+=rows)
+	{
+		items[i].bBreak=true;
+		items[i].bOverflow=true;
+	}
+}
+
 // Replaces each Recent Programs item with MENU_FLAT_LIST by the recent programs themselves
 void CMenuContainer::InsertRecentProgramLists( void )
 {
@@ -1601,6 +1612,7 @@ void CMenuContainer::InsertRecentProgramLists( void )
 			GetRecentPrograms(items,count,IsInSecondPane(i));
 		if (bJumplists)
 			SetJumplistFlags(items);
+		SetOverflowBreaks(items,0,(int)items.size(),placeholder.pStdItem->rows);
 
 		MenuItem copy=placeholder;
 		m_Items.erase(m_Items.begin()+i);
@@ -1627,6 +1639,7 @@ void CMenuContainer::PlacePinnedPrograms( bool bSetPosition )
 			m_PinnedPosition=i;
 			InheritColumnFlags(placeholder,m_Items[0]);
 			MovePinnedPadding();
+			SetOverflowBreaks(m_Items,0,m_ScrollCount,placeholder.pStdItem?placeholder.pStdItem->rows:0);
 		}
 		else if (i<(int)m_Items.size())
 			InheritColumnFlags(placeholder,m_Items[i]);
@@ -1705,9 +1718,11 @@ void CMenuContainer::UpdatePaneColumns( void )
 	}
 }
 
-// The left edge of a column of the first pane, in window coordinates
-int CMenuContainer::GetFirstPaneColumnX( int column )
+// The left edge of a column, in window coordinates. Each pane starts at its own content rectangle
+int CMenuContainer::GetColumnX( int column )
 {
+	if (IsSecondPaneColumn(column))
+		return m_rContent2.left+m_ColumnOffsets[column]-m_ColumnOffsets[m_PaneColumns[1].first];
 	return m_rContent.left+m_ColumnOffsets[column]-m_ColumnOffsets[m_PaneColumns[0].first];
 }
 
@@ -3490,7 +3505,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 	if (IsClassicMainMenu())
 	{
 		for (int k=1;k<(int)order.size();k++)
-			if (m_Items[order[k]].bBreak)
+			if (m_Items[order[k]].bBreak && !m_Items[order[k]].bOverflow) // overflow columns never change the panes
 				lastBreak=k;
 		TSecondPane mode=GetSecondPaneMode();
 		if (mode==SECOND_PANE_NONE)
@@ -3505,12 +3520,16 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 		int y=0;
 		int maxw=0;
 		int index=m_bSecondPaneFirst?1:0;
+		int overflowTop=0; // where the current list starts, so its overflow columns line up with it
+		bool bPrevListItem=false;
 		for (int k=0;k<(int)order.size();k++)
 		{
 			int i=order[k];
 			MenuItem &item=m_Items[i];
 
-			if (m_bTwoColumns && (index==0 || m_bSecondPaneFirst) && k>0 && item.bBreak && (column==0 || lastBreak>=0))
+			bool bUserBreak=item.bBreak && !item.bOverflow && (index==0 || m_bSecondPaneFirst) && (column==0 || lastBreak>=0);
+			bool bOverflowBreak=item.bOverflow && !s_bWin7Style;
+			if (m_bTwoColumns && k>0 && (bUserBreak || bOverflowBreak))
 			{
 				// start a new column
 				column++;
@@ -3524,14 +3543,24 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 					else
 						y=s_Skin.User_frame_position.x+s_Skin.User_image_padding.y-menuPadding[0].top;
 				}
-				if (m_bSecondPaneFirst)
-					index=0; // m_Pane2Column stays 1: the second pane is column 0
+				if (item.bOverflow)
+					y=overflowTop; // stays in the same pane
+				else if (m_bSecondPaneFirst)
+				{
+					if (index==1)
+						m_Pane2Column=column; // the first break ends the second pane
+					index=0;
+				}
 				else if (m_bSecondPane && (lastBreak<0 || k==lastBreak))
 				{
 					index=1;
 					m_Pane2Column=column;
 				}
 			}
+			bool bListItem=(item.id==MENU_RECENT || (i<m_ScrollCount && item.id==MENU_NO));
+			if (bListItem && !bPrevListItem)
+				overflowTop=y;
+			bPrevListItem=bListItem;
 			item.bNew=false;
 			if (m_bTwoColumns && i<m_OriginalCount && s_MenuMode!=MODE_NORMAL && (i<=m_SearchIndex-m_SearchItemCount || i>m_SearchIndex) && item.id!=MENU_SHUTDOWN_BUTTON)
 			{
@@ -4226,10 +4255,15 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 
 		for (std::vector<std::pair<int,int>>::const_iterator block=recentBlocks.begin();block!=recentBlocks.end();++block)
 		{
-			// reorder recent items
+			// reorder recent items. they keep the positions the layout gave them in MRU order, which may span several columns
 			int firstRecent=block->first, lastRecent=block->second;
-			int top=m_Items[firstRecent].itemRect.top;
-			int firstRow=m_Items[firstRecent].row;
+			struct Position { RECT rect; int row, column; };
+			std::vector<Position> positions;
+			for (int i=firstRecent;i<lastRecent;i++)
+			{
+				Position position={m_Items[i].itemRect,m_Items[i].row,m_Items[i].column};
+				positions.push_back(position);
+			}
 			if (bRecentByName)
 				std::sort(m_Items.begin()+firstRecent,m_Items.begin()+lastRecent,MenuItem::MruNameComparator());
 
@@ -4265,12 +4299,10 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 				std::reverse(m_Items.begin()+firstRecent,m_Items.begin()+lastRecent);
 			for (int i=firstRecent;i<lastRecent;i++)
 			{
-				RECT &rc=m_Items[i].itemRect;
-				int h=rc.bottom-rc.top;
-				rc.top=top;
-				top+=h;
-				rc.bottom=top;
-				m_Items[i].row=firstRow-firstRecent+i;
+				const Position &position=positions[i-firstRecent];
+				m_Items[i].itemRect=position.rect;
+				m_Items[i].row=position.row;
+				m_Items[i].column=position.column;
 			}
 		}
 	}

@@ -1587,10 +1587,12 @@ void CMenuContainer::CreateSubmenuRegion( int width, int height )
 // how strong the column lines are: 25% of the item text color
 const unsigned int COLUMN_LINE_OPACITY=64;
 
-// Draws the ColumnLines: a thin line in the middle of the gap before the columns first..last-1
-void CMenuContainer::DrawColumnLines( HDC hdc, HDC hdcTemp, int first, int last )
+// Draws the ColumnLines of a pane: a thin line in the middle of the gap before each of its columns but the first
+void CMenuContainer::DrawColumnLines( HDC hdc, HDC hdcTemp, int pane )
 {
 	// for skins whose own column separator doesn't show, like Immersive, which tints it to the background
+	int first=m_PaneColumns[pane].first+1, last=m_PaneColumns[pane].last;
+	const RECT &content=pane?m_rContent2:m_rContent;
 	if (first>=last) return;
 	BITMAPINFO bi={0};
 	bi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
@@ -1612,8 +1614,8 @@ void CMenuContainer::DrawColumnLines( HDC hdc, HDC hdcTemp, int first, int last 
 	BLENDFUNCTION func={AC_SRC_OVER,0,255,AC_SRC_ALPHA};
 	for (int i=first;i<last;i++)
 	{
-		int x=GetFirstPaneColumnX(i)-(gap+width)/2; // the middle of the gap
-		AlphaBlend(hdc,x,m_rContent.top,width,m_rContent.bottom-m_rContent.top,hdcTemp,0,0,1,1,func);
+		int x=GetColumnX(i)-(gap+width)/2; // the middle of the gap
+		AlphaBlend(hdc,x,content.top,width,content.bottom-content.top,hdcTemp,0,0,1,1,func);
 	}
 	SelectObject(hdcTemp,bmp0);
 	DeleteObject(bmpLine);
@@ -2519,27 +2521,28 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 		}
 	}
 
-	// draw vertical separators between the columns of a sub-menu, or of the main menu's first pane
-	// (the separator between the two panes is part of the background). they go before the columns sepFirst..sepLast-1
-	int sepFirst=m_PaneColumns[0].first+1, sepLast=m_PaneColumns[0].last;
-	if (m_bColumnLines)
-		DrawColumnLines(hdc,hdc2,sepFirst,sepLast); // instead of the skin's separators
-	else if (sepFirst<sepLast)
+	// draw vertical separators between the columns of a sub-menu, or within each pane of the main menu
+	// (the separator between the two panes is part of the background)
+	for (int pane=0;pane<2;pane++)
 	{
-		if (bmpSeparatorV.GetBitmap())
+		const RECT &content=pane?m_rContent2:m_rContent;
+		int sepFirst=m_PaneColumns[pane].first+1, sepLast=m_PaneColumns[pane].last; // separators go before these columns
+		if (m_bColumnLines)
+			DrawColumnLines(hdc,hdc2,pane); // instead of the skin's separators
+		else if (sepFirst<sepLast && bmpSeparatorV.GetBitmap())
 		{
 			HGDIOBJ bmp0=SelectObject(hdc2,bmpSeparatorV.GetBitmap());
 			RECT rSrc={0,0,sepWidth,sepSlicesY[0]+sepSlicesY[1]+sepSlicesY[2]};
 			RECT rMargins={0,sepSlicesY[0],0,sepSlicesY[2]};
 			for (int i=sepFirst;i<sepLast;i++)
 			{
-				int x=GetFirstPaneColumnX(i);
-				RECT rc={x-sepWidth,m_rContent.top,x,m_rContent.bottom};
+				int x=GetColumnX(i);
+				RECT rc={x-sepWidth,content.top,x,content.bottom};
 				MarginsBlit(hdc2,hdc,rSrc,rc,rMargins,bmpSeparatorV.bIs32);
 			}
 			SelectObject(hdc2,bmp0);
 		}
-		else
+		else if (sepFirst<sepLast)
 		{
 			int offset=0;
 			if (s_Theme)
@@ -2554,8 +2557,8 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 			}
 			for (int i=sepFirst;i<sepLast;i++)
 			{
-				int x=GetFirstPaneColumnX(i)+offset;
-				RECT rc={x-sepWidth,m_rContent.top,x,m_rContent.bottom};
+				int x=GetColumnX(i)+offset;
+				RECT rc={x-sepWidth,content.top,x,content.bottom};
 				if (s_Theme)
 					DrawThemeBackground(s_Theme,hdc,TP_SEPARATOR,TS_NORMAL,&rc,NULL);
 				else

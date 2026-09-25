@@ -115,6 +115,7 @@ struct StdMenuItem
 	const wchar_t *iconPath;
 	const wchar_t *link;
 	unsigned int settings;
+	int rows; // Pinned programs and Recent Programs lists: rows per column before the list continues in the next column (0 - no limit)
 	const StdMenuItem *submenu;
 	CString labelString, tipString; // additional storage for the strings
 
@@ -461,7 +462,7 @@ private:
 			drawType=MenuSkin::COLUMN1_ITEM;
 			column=row=0;
 			memset(&itemRect,0,sizeof(itemRect));
-			bFolder=bLink=bPrograms=bAlignBottom=bBreak=bInline=bInlineFirst=bInlineLast=bSplit=bHasJumpList=bMetroLink=bMetroApp=bBlankSeparator=bNew=bStartScreen=bCustomAccelerator=false;
+			bFolder=bLink=bPrograms=bAlignBottom=bBreak=bInline=bInlineFirst=bInlineLast=bSplit=bHasJumpList=bMetroLink=bMetroApp=bBlankSeparator=bNew=bStartScreen=bCustomAccelerator=bOverflow=false;
 			priority=0;
 			pItem1=pItem2=NULL;
 			mfuHash=0;
@@ -498,6 +499,7 @@ private:
 		bool bBlankSeparator:1; // this is a blank separator that is the same size as normal items
 		bool bNew:1; // this is a highlighted new item
 		bool bStartScreen:1; // this is the start screen shortcut item
+		bool bOverflow:1; // starts a column because its list has more items than rows per column (see SetOverflowBreaks)
 		bool bCustomAccelerator:1; // the accelerator is specified explicitly
 		char priority; // used for sorting of the All Programs menu (0 for Start Menu, 1 for the separator, 2 for the Programs)
 		char drive;
@@ -724,14 +726,15 @@ private:
 	static TSecondPane GetSecondPaneMode( void );
 	bool IsInSecondPane( int index );
 	static void InheritColumnFlags( const MenuItem &placeholder, MenuItem &item );
+	static void SetOverflowBreaks( std::vector<MenuItem> &items, int first, int last, int rows );
 	void InsertRecentProgramLists( void );
 	void PlacePinnedPrograms( bool bSetPosition );
 	void MovePinnedPadding( void );
 	void GetLayoutOrder( std::vector<int> &order );
 	int GetMainColumnGap( void );
 	void UpdatePaneColumns( void );
-	int GetFirstPaneColumnX( int column );
-	void DrawColumnLines( HDC hdc, HDC hdcTemp, int first, int last );
+	int GetColumnX( int column );
+	void DrawColumnLines( HDC hdc, HDC hdcTemp, int pane );
 	bool IsClassicMainMenu( void ) { return m_bTwoColumns && !m_bSubMenu && !s_bWin7Style; }
 	bool IsSecondPaneColumn( int column ) { return column>=m_PaneColumns[1].first && column<m_PaneColumns[1].last; }
 

@@ -106,6 +106,8 @@
 #define IDC_COMBOHEADINGSIZE            1092
 #define IDC_CHECKHEADINGBOLD            1093
 #define IDC_CHECKHEADINGITALIC          1094
+#define IDC_STATICROWS                  1095
+#define IDC_EDITROWS                    1096
 #define IDD_CUSTOMMENU                  3001
 #define IDS_APP_TITLE                   3001
 #define IDD_SKINSETTINGS                3002
@@ -877,7 +879,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        126
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1095
+#define _APS_NEXT_CONTROL_VALUE         1097
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
