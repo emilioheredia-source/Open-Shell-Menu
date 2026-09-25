@@ -56,6 +56,7 @@ static StdMenuItem g_StdMenu[]=
 	{L"lock",MENU_LOCK},
 	{L"*recent_programs",MENU_RECENT_PROGRAMS},
 	{L"*pinned_programs",MENU_PINNED_PROGRAMS},
+	{L"*heading",MENU_SEPARATOR}, // a separator that shows its label as a heading
 	{L"search_box",MENU_SEARCH_BOX},
 	{L"*apps",MENU_APPS},
 

@@ -2439,6 +2439,7 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 			}
 			SelectObject(hdc2,bmp0);
 		}
+
 	}
 
 	// draw vertical separators (between the columns of a sub-menu, or of the first pane of the main menu.
@@ -2482,6 +2483,39 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 					DrawEdge(hdc,&rc,EDGE_ETCHED,BF_LEFT);
 			}
 		}
+	}
+
+	// ColumnLines: a thin line in the middle of the gap between the columns of the main menu's first pane,
+	// in the item text color at 25% opacity. For skins whose own column separator doesn't show (like Immersive)
+	if (!m_bSubMenu && m_bTwoColumns && !s_bWin7Style && separatedColumns>1 && GetSettingBool(L"ColumnLines"))
+	{
+		COLORREF color=s_Skin.ItemSettings[MenuSkin::COLUMN1_ITEM].textColors[0];
+		unsigned int alpha=64;
+		BITMAPINFO bi={0};
+		bi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+		bi.bmiHeader.biWidth=1;
+		bi.bmiHeader.biHeight=1;
+		bi.bmiHeader.biPlanes=1;
+		bi.bmiHeader.biBitCount=32;
+		bi.bmiHeader.biCompression=BI_RGB;
+		unsigned int *bits=NULL;
+		HBITMAP bmpLine=CreateDIBSection(NULL,&bi,DIB_RGB_COLORS,(void**)&bits,NULL,0);
+		if (bmpLine && bits)
+		{
+			unsigned int r=GetRValue(color), g=GetGValue(color), b=GetBValue(color);
+			*bits=(alpha<<24)|((r*alpha/255)<<16)|((g*alpha/255)<<8)|(b*alpha/255);
+			int width=s_Skin.Dpi/96;
+			if (width<1) width=1;
+			HGDIOBJ bmp0=SelectObject(hdc2,bmpLine);
+			BLENDFUNCTION func={AC_SRC_OVER,0,255,AC_SRC_ALPHA};
+			for (size_t i=1;i<separatedColumns;i++)
+			{
+				int x=m_rContent.left+m_ColumnOffsets[i]-(sepWidth+width)/2;
+				AlphaBlend(hdc,x,m_rContent.top,width,m_rContent.bottom-m_rContent.top,hdc2,0,0,1,1,func);
+			}
+			SelectObject(hdc2,bmp0);
+		}
+		if (bmpLine) DeleteObject(bmpLine);
 	}
 
 	// draw insert mark

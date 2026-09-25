@@ -1075,6 +1075,10 @@ BEGIN
     IDS_MENU_GLASS_TIP      "Check this to use glass transparency (requires the Aero Glass mod to be installed)"
     IDS_MAIN_MENU_SETTINGS  "Main Menu"
 	IDS_BUTTON_OFFSET		"Button offset"
+	IDS_HEADING_ITEM	"Heading"
+	IDS_HEADING_TIP	"A separator that shows its label as a heading, for example above the pinned or the recent programs"
+	IDS_COLUMN_LINES	"Column lines"
+	IDS_COLUMN_LINES_TIP	"Draws a thin line between the columns of the main menu, for skins that don't draw one"
 	IDS_SECOND_PANE	"Second pane look"
 	IDS_SECOND_PANE_TIP	"Which column of the menu uses the skin's second (right) pane look"
 	IDS_SECOND_PANE_LAST	"Last column"
@@ -1139,7 +1143,7 @@ END
 
 STRINGTABLE 
 BEGIN
-    IDS_STRING7008          "No icons in second column#The items in the second column of the main menu will not have icons"
+    IDS_STRING7008          "No icons in second pane#The items in the column with the second-pane look (the last column by default, see Second pane look in the Menu Look tab) will not have icons"
     IDS_STRING7009          "Disable glass transparency#The colored parts of the menu will be opaque"
     IDS_STRING7010          "Transparency level#Select how transparent the menu should be"
     IDS_STRING7011          "Small icons#The main menu will use small icons"
