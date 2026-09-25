@@ -1510,6 +1510,8 @@ private:
 	// FLAT_LIST only applies to the Recent Programs item, and the HEADING_ settings to headings
 	bool IsRecentPrograms( void ) { return m_pItem->pStdCommand && wcscmp(m_pItem->pStdCommand->name,L"recent_programs")==0; }
 	bool IsHeading( void ) { return m_pItem->pStdCommand && wcscmp(m_pItem->pStdCommand->name,L"heading")==0; }
+	// Rows per column applies to the lists of pinned and recent programs
+	bool IsList( void ) { return IsRecentPrograms() || (m_pItem->pStdCommand && wcscmp(m_pItem->pStdCommand->name,L"pinned_programs")==0); }
 	void EnableHeadingControls( void );
 
 	int m_Style, m_StyleMask;
@@ -1552,6 +1554,9 @@ LRESULT CEditMenuDlg::OnInitDialog( UINT uMsg, WPARAM wParam, LPARAM lParam, BOO
 	CheckDlgButton(IDC_CHECKHEADINGBOLD,(m_pItem->settings&StdMenuItem::MENU_HEADING_BOLD)?BST_CHECKED:BST_UNCHECKED);
 	CheckDlgButton(IDC_CHECKHEADINGITALIC,(m_pItem->settings&StdMenuItem::MENU_HEADING_ITALIC)?BST_CHECKED:BST_UNCHECKED);
 	EnableHeadingControls();
+	if (m_pItem->rows>0) SetDlgItemInt(IDC_EDITROWS,m_pItem->rows,FALSE);
+	GetDlgItem(IDC_STATICROWS).EnableWindow(IsList());
+	GetDlgItem(IDC_EDITROWS).EnableWindow(IsList());
 	if (m_pItem->pStdCommand && (wcscmp(m_pItem->pStdCommand->name,L"programs")==0 || wcscmp(m_pItem->pStdCommand->name,L"apps")==0))
 	{
 		CheckDlgButton(IDC_CHECKMULTICOLUMN,BST_CHECKED);
@@ -1700,6 +1705,7 @@ LRESULT CEditMenuDlg::OnOK( WORD wNotifyCode, WORD wID, HWND hWndCtl, BOOL& bHan
 	if (IsDlgButtonChecked(IDC_CHECKSPLIT)==BST_CHECKED) m_pItem->settings|=StdMenuItem::MENU_SPLIT_BUTTON;
 	if (IsDlgButtonChecked(IDC_CHECKNOEXT)==BST_CHECKED) m_pItem->settings|=StdMenuItem::MENU_NOEXTENSIONS;
 	if (IsRecentPrograms() && IsDlgButtonChecked(IDC_CHECKFLATLIST)==BST_CHECKED) m_pItem->settings|=StdMenuItem::MENU_FLAT_LIST;
+	m_pItem->rows=IsList()?(int)GetDlgItemInt(IDC_EDITROWS,NULL,FALSE):0;
 	if (IsHeading())
 	{
 		int size=(int)SendDlgItemMessage(IDC_COMBOHEADINGSIZE,CB_GETCURSEL);
@@ -1745,6 +1751,8 @@ LRESULT CEditMenuDlg::OnCommandChanged( WORD wNotifyCode, WORD wID, HWND hWndCtl
 	}
 	GetDlgItem(IDC_CHECKFLATLIST).EnableWindow(IsRecentPrograms());
 	EnableHeadingControls();
+	GetDlgItem(IDC_STATICROWS).EnableWindow(IsList());
+	GetDlgItem(IDC_EDITROWS).EnableWindow(IsList());
 	UpdateIcons(IDC_ICONN,0);
 	return 0;
 }
@@ -1891,6 +1899,9 @@ void CCustomMenuDlg::ParseTreeItemExtra( CTreeItem *pItem, CSettingsParser &pars
 {
 	pItem->settings=0;
 	wchar_t text[256];
+	Sprintf(text,_countof(text),L"%s.Rows",pItem->name);
+	const wchar_t *rows=parser.FindSetting(text);
+	pItem->rows=rows?_wtol(rows):0;
 	Sprintf(text,_countof(text),L"%s.Settings",pItem->name);
 	const wchar_t *str=parser.FindSetting(text);
 	if (!str) return;
@@ -1922,8 +1933,13 @@ void CCustomMenuDlg::ParseTreeItemExtra( CTreeItem *pItem, CSettingsParser &pars
 
 void CCustomMenuDlg::SerializeItemExtra( CTreeItem *pItem, std::vector<wchar_t> &stringBuilder )
 {
-	if (!pItem->settings) return;
 	wchar_t text[256];
+	if (pItem->rows>0)
+	{
+		Sprintf(text,_countof(text),L"%s.Rows=%d\n",pItem->name,pItem->rows);
+		AppendString(stringBuilder,text);
+	}
+	if (!pItem->settings) return;
 	Sprintf(text,_countof(text),L"%s.Settings=",pItem->name);
 	AppendString(stringBuilder,text);
 	if (pItem->settings&StdMenuItem::MENU_OPENUP) AppendString(stringBuilder,L"OPEN_UP|");
