@@ -20,6 +20,12 @@ enum TProgramsStyle
 	PROGRAMS_HIDDEN,
 };
 
+enum TSecondPane // SecondPane setting: which column gets the second-pane look in the Classic two-column menu
+{
+	SECOND_PANE_LAST, // the column after the last column break
+	SECOND_PANE_NONE, // no column: all columns look like the first pane
+};
+
 enum TRecentPrograms
 {
 	RECENT_PROGRAMS_NONE,

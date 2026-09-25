@@ -710,6 +710,7 @@ CMenuContainer::CMenuContainer( CMenuContainer *pParent, int index, int options,
 	m_MaxWidth=0;
 	m_bTwoColumns=false;
 	m_PinnedPosition=-1;
+	m_bSecondPane=true;
 	m_Pane2Column=1;
 	memset(&m_rMenu,0,sizeof(m_rMenu));
 	memset(&m_rContent,0,sizeof(m_rContent));
@@ -3377,11 +3378,14 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 	std::vector<int> order; // positions below are in this order (see GetLayoutOrder)
 	GetLayoutOrder(order);
 	int lastBreak=-1;
+	m_bSecondPane=true;
 	if (m_bTwoColumns && !s_bWin7Style)
 	{
 		for (int k=1;k<(int)order.size();k++)
 			if (m_Items[order[k]].bBreak)
 				lastBreak=k;
+		if (GetSettingInt(L"SecondPane")==SECOND_PANE_NONE)
+			m_bSecondPane=false; // every break starts another first-pane column
 	}
 	m_Pane2Column=1;
 
@@ -3409,7 +3413,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 					else
 						y=s_Skin.User_frame_position.x+s_Skin.User_image_padding.y-menuPadding[0].top;
 				}
-				if (lastBreak<0 || k==lastBreak)
+				if (m_bSecondPane && (lastBreak<0 || k==lastBreak))
 				{
 					index=1;
 					m_Pane2Column=column;
@@ -3647,6 +3651,8 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 			row++;
 		}
 	}
+	if (!m_bSecondPane)
+		m_Pane2Column=(int)columnWidths.size(); // past the last column: every column is in the first pane
 
 	SelectObject(hdc,font0);
 	DeleteDC(hdc);
@@ -3871,7 +3877,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 		if (m_bTwoColumns && columnWidths.size()>2)
 		{
 			w1=m_ColumnOffsets[m_Pane2Column-1]+columnWidths[m_Pane2Column-1]; // all columns of the first pane
-			w2=columnWidths[m_Pane2Column];
+			w2=m_bSecondPane?columnWidths[m_Pane2Column]:0;
 
 			if (s_bWin7Style)
 			{
@@ -3977,7 +3983,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 				if (!s_bWin7Style && columnDH[c]<0)
 					columnDH[c]=0;
 			}
-			int dh1=columnDH[0], dh2=columnDH[m_Pane2Column]; // the Windows 7 style trims overlapping items below
+			int dh1=columnDH[0], dh2=m_Pane2Column<(int)columnDH.size()?columnDH[m_Pane2Column]:0; // the Windows 7 style trims overlapping items below
 
 			std::vector<bool> bAlign(columnDH.size(),false);
 			for (int i=0;i<m_OriginalCount;i++)
