@@ -2506,11 +2506,12 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 			*bits=(alpha<<24)|((r*alpha/255)<<16)|((g*alpha/255)<<8)|(b*alpha/255);
 			int width=s_Skin.Dpi/96;
 			if (width<1) width=1;
+			int gap=GetMainColumnGap();
 			HGDIOBJ bmp0=SelectObject(hdc2,bmpLine);
 			BLENDFUNCTION func={AC_SRC_OVER,0,255,AC_SRC_ALPHA};
 			for (size_t i=1;i<separatedColumns;i++)
 			{
-				int x=m_rContent.left+m_ColumnOffsets[i]-(sepWidth+width)/2;
+				int x=m_rContent.left+m_ColumnOffsets[i]-(gap+width)/2; // the middle of the gap
 				AlphaBlend(hdc,x,m_rContent.top,width,m_rContent.bottom-m_rContent.top,hdc2,0,0,1,1,func);
 			}
 			SelectObject(hdc2,bmp0);

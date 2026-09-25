@@ -709,6 +709,7 @@ private:
 	void InsertRecentProgramLists( void );
 	void PlacePinnedPrograms( bool bSetPosition );
 	void GetLayoutOrder( std::vector<int> &order ) const;
+	int GetMainColumnGap( void ) const;
 
 	// additional commands for the context menu
 	enum

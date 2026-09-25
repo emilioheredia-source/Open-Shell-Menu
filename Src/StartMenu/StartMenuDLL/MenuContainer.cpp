@@ -1636,6 +1636,15 @@ void CMenuContainer::GetLayoutOrder( std::vector<int> &order ) const
 		order[k++]=i;
 }
 
+// The space between two columns of the main menu. With ColumnLines the gap is wider, so the line keeps clear of the icons on both sides
+int CMenuContainer::GetMainColumnGap( void ) const
+{
+	int gap=s_Skin.Main_separatorWidth;
+	if (m_bTwoColumns && !s_bWin7Style && GetSettingBool(L"ColumnLines"))
+		gap+=2*(s_Skin.Dpi*8/96);
+	return gap;
+}
+
 void CMenuContainer::UpdateAccelerators( int first, int last )
 {
 	TRecentKeys recentKeys=(TRecentKeys)GetSettingInt(L"RecentProgKeys");
@@ -3732,7 +3741,7 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 		m_ColumnOffsets.resize(columnWidths.size());
 		for (size_t i=0;i<columnWidths.size();i++)
 		{
-			if (i>0) maxw+=m_bSubMenu?s_Skin.Submenu_separatorWidth:s_Skin.Main_separatorWidth;
+			if (i>0) maxw+=m_bSubMenu?s_Skin.Submenu_separatorWidth:GetMainColumnGap();
 			m_ColumnOffsets[i]=maxw;
 			maxw+=columnWidths[i];
 		}
