@@ -159,6 +159,19 @@ void ClearSettingsTreeItemAccessibility( HWND tree )
 	}
 }
 
+// Removes everything EnableSettingsTreeAccessibility and the item functions registered for the tree. Call it before the tree is destroyed:
+// the property servers are objects in this DLL, and Windows keeps them after the window is gone. When the DLL is unloaded
+// (Open-Shell exits or restarts) and something later sets an accessibility property in the same process, Windows releases
+// the stale servers and calls into unloaded code, which crashes Explorer (FAST_FAIL_GUARD_ICALL_CHECK_FAILURE in oleacc)
+void DisableSettingsTreeAccessibility( HWND tree )
+{
+	ClearSettingsTreeItemAccessibility(tree);
+	CComPtr<IAccPropServices> props;
+	if (FAILED(CoCreateInstance(CLSID_SettingsAccPropServices,NULL,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&props)))) return;
+	MSAAPROPID properties[]={PROPID_SettingsAccState,PROPID_SettingsAccName,PROPID_SettingsAccRole};
+	props->ClearHwndProps(tree,OBJID_CLIENT,CHILDID_SELF,properties,_countof(properties));
+}
+
 void SetControlAccessibleName( HWND control, const wchar_t *name )
 {
 	CComPtr<IAccPropServices> props;
@@ -2778,6 +2791,7 @@ LRESULT CTreeSettingsDlg::OnInitDialog( UINT uMsg, WPARAM wParam, LPARAM lParam,
 
 LRESULT CTreeSettingsDlg::OnDestroy( UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled )
 {
+	DisableSettingsTreeAccessibility(m_Tree);
 	DestroyIcon(m_PlayIcon);
 	bHandled=FALSE;
 	m_EditMode=EDIT_NONE;
