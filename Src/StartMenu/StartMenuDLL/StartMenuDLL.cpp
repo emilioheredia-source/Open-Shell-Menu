@@ -1654,6 +1654,17 @@ static void ComputeTaskbarColors( int *data )
 	data[3]=0;
 }
 
+// Exits the menu and starts it again: StartMenu.exe -reload, from this DLL's folder, makes the running menu exit,
+// waits for it, and carries on as the menu
+static void ReloadStartMenu( void )
+{
+	wchar_t exe[_MAX_PATH];
+	GetModuleFileName(g_Instance,exe,_countof(exe));
+	PathRemoveFileSpec(exe);
+	PathAppend(exe,L"StartMenu.exe");
+	ShellExecute(NULL,NULL,exe,L"-reload",NULL,SW_SHOWNORMAL);
+}
+
 static void ShowWinX( void )
 {
 	if (IsWin11())
@@ -4207,12 +4218,7 @@ if (!g_bTrimHooks)
 						}
 						if (res==CMD_RELOAD)
 						{
-							// StartMenu.exe -reload makes this menu exit, waits for it, and starts the menu again
-							wchar_t exe[_MAX_PATH];
-							GetModuleFileName(g_Instance,exe,_countof(exe));
-							PathRemoveFileSpec(exe);
-							PathAppend(exe,L"StartMenu.exe");
-							ShellExecute(NULL,NULL,exe,L"-reload",NULL,SW_SHOWNORMAL);
+							ReloadStartMenu();
 							return TRUE;
 						}
 						if (res==CMD_EXIT)

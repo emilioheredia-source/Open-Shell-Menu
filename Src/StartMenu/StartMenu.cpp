@@ -365,6 +365,35 @@ DWORD PerformOsUpgradeTask(bool silent)
 	return error;
 }
 
+// For -reload: asks the running menu to exit and waits until its process has ended, not just released the mutex, so
+// that it is out of Explorer before this process hooks it. Then this process owns the mutex and carries on as the menu.
+// Returns false if the running menu wasn't found or didn't exit in time; it is left running then
+static bool TakeOverFromRunningMenu( HANDLE hMutex )
+{
+	const DWORD EXIT_TIMEOUT=20000; // ms; exiting is quick unless the menu is busy
+	const DWORD MUTEX_TIMEOUT=2000; // ms; the mutex is released just before the process ends
+
+	HWND hwnd=FindWindow(L"OpenShellMenu.CStartHookWindow",L"StartHookWindow");
+	DWORD pid=0;
+	HANDLE hProcess=(hwnd && GetWindowThreadProcessId(hwnd,&pid))?OpenProcess(SYNCHRONIZE,FALSE,pid):NULL;
+	if (!hProcess)
+	{
+		DllLogToFile(STARTUP_LOG,L"StartMenu: reload - the running menu was not found");
+		return false;
+	}
+
+	DllLogToFile(STARTUP_LOG,L"StartMenu: reload - asking the running menu to exit");
+	PostMessage(hwnd,WM_OPEN,MSG_EXIT,0);
+	DWORD wait=WaitForSingleObject(hProcess,EXIT_TIMEOUT);
+	CloseHandle(hProcess);
+	if (wait==WAIT_OBJECT_0)
+		wait=WaitForSingleObject(hMutex,MUTEX_TIMEOUT);
+	if (wait==WAIT_OBJECT_0 || wait==WAIT_ABANDONED)
+		return true;
+	DllLogToFile(STARTUP_LOG,L"StartMenu: reload - the running menu did not exit");
+	return false;
+}
+
 int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpstrCmdLine, int nCmdShow )
 {
 /*	CoInitialize(NULL);
@@ -652,22 +681,8 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpstrC
 		hMutex=CreateMutex(NULL,TRUE,mutexName);
 		if ((GetLastError()==ERROR_ALREADY_EXISTS || GetLastError()==ERROR_ACCESS_DENIED) && bReload && hMutex)
 		{
-			DllLogToFile(STARTUP_LOG,L"StartMenu: reload - asking the running menu to exit");
-			HWND hwnd=FindWindow(L"OpenShellMenu.CStartHookWindow",L"StartHookWindow");
-			DWORD pid=0;
-			HANDLE hProcess=NULL;
-			if (hwnd && GetWindowThreadProcessId(hwnd,&pid))
-				hProcess=OpenProcess(SYNCHRONIZE,FALSE,pid);
-			if (hwnd) PostMessage(hwnd,WM_OPEN,MSG_EXIT,0);
-			// wait until the running menu has exited, not just released the mutex, so it is out of Explorer before this process hooks it.
-			// Then this process owns the mutex and carries on as the menu
-			DWORD wait=hProcess?WaitForSingleObject(hProcess,20000):WAIT_FAILED;
-			if (hProcess) CloseHandle(hProcess);
-			if (wait==WAIT_OBJECT_0)
-				wait=WaitForSingleObject(hMutex,2000);
-			if (wait!=WAIT_OBJECT_0 && wait!=WAIT_ABANDONED)
+			if (!TakeOverFromRunningMenu(hMutex))
 			{
-				DllLogToFile(STARTUP_LOG,L"StartMenu: reload - the running menu did not exit");
 				CloseHandle(hMutex);
 				return 0;
 			}
