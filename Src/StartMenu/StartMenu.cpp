@@ -563,6 +563,8 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpstrC
 	else if (wcsstr(lpstrCmdLine,L"-settings")!=NULL) open=MSG_SETTINGS;
 	else if (wcsstr(lpstrCmdLine,L"-reloadsettings")!=NULL) open=MSG_RELOADSETTINGS;
 	else if (wcsstr(lpstrCmdLine,L"-exit")!=NULL) open=MSG_EXIT;
+	// -reload: make the running menu exit, then start as usual (the Reload command on the start button's context menu)
+	bool bReload=(open==CMD_NONE && wcsstr(lpstrCmdLine,L"-reload")!=NULL);
 
 	{
 		const wchar_t *pXml=wcsstr(lpstrCmdLine,L"-xml ");
@@ -648,6 +650,29 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPTSTR lpstrC
 	if (bHookExplorer)
 	{
 		hMutex=CreateMutex(NULL,TRUE,mutexName);
+		if ((GetLastError()==ERROR_ALREADY_EXISTS || GetLastError()==ERROR_ACCESS_DENIED) && bReload && hMutex)
+		{
+			DllLogToFile(STARTUP_LOG,L"StartMenu: reload - asking the running menu to exit");
+			HWND hwnd=FindWindow(L"OpenShellMenu.CStartHookWindow",L"StartHookWindow");
+			DWORD pid=0;
+			HANDLE hProcess=NULL;
+			if (hwnd && GetWindowThreadProcessId(hwnd,&pid))
+				hProcess=OpenProcess(SYNCHRONIZE,FALSE,pid);
+			if (hwnd) PostMessage(hwnd,WM_OPEN,MSG_EXIT,0);
+			// wait until the running menu has exited, not just released the mutex, so it is out of Explorer before this process hooks it.
+			// Then this process owns the mutex and carries on as the menu
+			DWORD wait=hProcess?WaitForSingleObject(hProcess,20000):WAIT_FAILED;
+			if (hProcess) CloseHandle(hProcess);
+			if (wait==WAIT_OBJECT_0)
+				wait=WaitForSingleObject(hMutex,2000);
+			if (wait!=WAIT_OBJECT_0 && wait!=WAIT_ABANDONED)
+			{
+				DllLogToFile(STARTUP_LOG,L"StartMenu: reload - the running menu did not exit");
+				CloseHandle(hMutex);
+				return 0;
+			}
+			SetLastError(ERROR_SUCCESS);
+		}
 		if (GetLastError()==ERROR_ALREADY_EXISTS || GetLastError()==ERROR_ACCESS_DENIED)
 		{
 			if (open==MSG_TOGGLE || open==CMD_TOGGLE_NEW)
