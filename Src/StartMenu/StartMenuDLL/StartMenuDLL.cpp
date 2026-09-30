@@ -4119,6 +4119,8 @@ if (!g_bTrimHooks)
 						CMD_OPEN_ALL,
 						CMD_EXPLORER,
 						CMD_OPEN_PINNED,
+						CMD_WINDOWS_START,
+						CMD_WINX,
 					};
 
 					// right-click on the start button - open the context menu (Settings, Help, Exit)
@@ -4136,6 +4138,13 @@ if (!g_bTrimHooks)
 						AppendMenu(menu,MF_SEPARATOR,0,0);
 					}
 					int count0=GetMenuItemCount(menu);
+					if (winVer>=WIN_VER_WIN8)
+					{
+						// the menus of Windows itself, which Shift+click and Shift+right-click open, for those who don't know the shortcuts
+						AppendMenu(menu,MF_STRING,CMD_WINDOWS_START,FindTranslation(L"Menu.StartMenu",L"Start Menu (Windows)"));
+						AppendMenu(menu,MF_STRING,CMD_WINX,FindTranslation(L"Menu.WinXMenu",L"Win+X Menu"));
+						AppendMenu(menu,MF_SEPARATOR,0,0);
+					}
 					if (GetSettingBool(L"EnableExplorer"))
 					{
 						if (!GetSettingString(L"ExplorerPath").IsEmpty())
@@ -4170,6 +4179,14 @@ if (!g_bTrimHooks)
 						int res=TrackPopupMenu(menu,TPM_RIGHTBUTTON|TPM_RETURNCMD|(IsLanguageRTL()?TPM_LAYOUTRTL:0),pt0.x,pt0.y,0,msg->hwnd,NULL);
 						DestroyMenu(menu);
 						g_bInMenu=false;
+						if (res==CMD_WINDOWS_START)
+						{
+							PostMessage(g_ProgWin,WM_SYSCOMMAND,SC_TASKLIST,'WSMK'); // as Shift+click does
+						}
+						if (res==CMD_WINX)
+						{
+							ShowWinX(); // as Shift+right-click does
+						}
 						if (res==CMD_SETTINGS)
 						{
 							EditSettings(false,0);
