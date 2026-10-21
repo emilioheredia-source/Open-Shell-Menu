@@ -1031,11 +1031,11 @@ static const CStdCommand g_StdCommands[]={
 	{L"help",IDS_HELP_ITEM,IDS_HELP_TIP,L"HelpItem",L"$Menu.Help",L"$Menu.HelpTip",L"imageres.dll,99"},
 	{L"run",IDS_RUN_ITEM,IDS_RUN_TIP,L"RunItem",L"$Menu.Run",L"$Menu.RunTip",L"shell32.dll,328"},
 	{L"logoff",IDS_SHUTDOWN_LOGOFF,IDS_LOGOFF_TIP,L"LogOffItem",L"$Menu.Logoff",L"$Menu.LogOffTip",L"shell32.dll,325",NULL,StdMenuItem::MENU_STYLE_CLASSIC1},
-	{L"logoff",IDS_SHUTDOWN_LOGOFF,IDS_LOGOFF_TIP,L"LogOffItem",L"$Menu.Logoff",L"$Menu.LogOffTip",L"none",NULL,StdMenuItem::MENU_STYLE_CLASSIC2},
+	{L"logoff",IDS_SHUTDOWN_LOGOFF,IDS_LOGOFF_TIP,L"LogOffItem",L"$Menu.Logoff",L"$Menu.LogOffTip",L"shell32.dll,325",NULL,StdMenuItem::MENU_STYLE_CLASSIC2},
 	{L"undock",IDS_UNDOCK_ITEM,IDS_UNDOCK_TIP,L"UndockItem",L"$Menu.Undock",L"$Menu.UndockTip",L"shell32.dll,331",NULL,StdMenuItem::MENU_STYLE_CLASSIC1},
-	{L"undock",IDS_UNDOCK_ITEM,IDS_UNDOCK_TIP,L"UndockItem",L"$Menu.Undock",L"$Menu.UndockTip",L"none",NULL,StdMenuItem::MENU_STYLE_CLASSIC2},
+	{L"undock",IDS_UNDOCK_ITEM,IDS_UNDOCK_TIP,L"UndockItem",L"$Menu.Undock",L"$Menu.UndockTip",L"shell32.dll,331",NULL,StdMenuItem::MENU_STYLE_CLASSIC2},
 	{L"disconnect",IDS_DISCONNECT_ITEM,IDS_DISCONNECT_TIP,L"DisconnectItem",L"$Menu.Disconnect",L"$Menu.DisconnectTip",L"shell32.dll,329",NULL,StdMenuItem::MENU_STYLE_CLASSIC1},
-	{L"disconnect",IDS_DISCONNECT_ITEM,IDS_DISCONNECT_TIP,L"DisconnectItem",L"$Menu.Disconnect",L"$Menu.DisconnectTip",L"none",NULL,StdMenuItem::MENU_STYLE_CLASSIC2},
+	{L"disconnect",IDS_DISCONNECT_ITEM,IDS_DISCONNECT_TIP,L"DisconnectItem",L"$Menu.Disconnect",L"$Menu.DisconnectTip",L"shell32.dll,329",NULL,StdMenuItem::MENU_STYLE_CLASSIC2},
 	{L"shutdown_box",IDS_SHUTDOWN_SHUTDOWN_BOX,IDS_SHUTDOWNBOX_TIP,L"ShutdownBoxItem",L"$Menu.ShutdownBox",NULL,L"shell32.dll,329",NULL,StdMenuItem::MENU_SPLIT_BUTTON},
 	{L"user_files",IDS_SHOW_USERFILES,IDS_USERFILES_TIP,L"UserFilesItem",NULL,L"$Menu.UserFilesTip",L"",&FOLDERID_UsersFiles},
 	{L"user_documents",IDS_SHOW_USERDOCS,IDS_USERDOCS_TIP,L"UserDocumentsItem",NULL,L"$Menu.UserDocumentsTip",L"",&FOLDERID_Documents},
@@ -1052,18 +1052,18 @@ static const CStdCommand g_StdCommands[]={
 	{L"search_printer",IDS_SEARCH_PRINTER_ITEM,IDS_SEARCHPR_TIP,L"SearchPrinterItem",L"$Menu.SearchPrinter",L"$Menu.SearchPrintersTip",L"shell32.dll,1006"},
 	{L"search_computers",IDS_SEARCH_COMP_ITEM,IDS_SEARCHCO_TIP,L"SearchComputersItem",L"$Menu.SearchComputers",L"$Menu.SearchComputersTip",L"shell32.dll,135"},
 	{L"search_people",IDS_SEARCH_PEOPLE_ITEM,IDS_SEARCHPE_TIP,L"SearchPeopleItem",L"$Menu.SearchPeople",NULL,L"shell32.dll,269"},
-	{L"sleep",IDS_SHUTDOWN_SLEEP,IDS_SLEEP_TIP,L"SleepItem",L"$Menu.Sleep",L"$Menu.SleepTip",L"none"},
-	{L"hibernate",IDS_SHUTDOWN_HIBERNATE,IDS_HIBERNATE_TIP,L"HibernateItem",L"$Menu.Hibernate",L"$Menu.HibernateTip",L"none"},
-	{L"restart",IDS_SHUTDOWN_RESTART,IDS_RESTART_TIP,L"RestartItem",L"$Menu.Restart",L"$Menu.RestartTip",L"none"},
-	{L"restart_noupdate",IDS_SHUTDOWN_RESTART_NU,IDS_RESTART_NU_TIP,L"RestartItem",L"$Menu.Restart",L"$Menu.RestartTip",L"none"},
-	{L"shutdown",IDS_SHUTDOWN_SHUTDOWN,IDS_SHUTDOWN_TIP,L"ShutdownItem",L"$Menu.Shutdown",L"$Menu.ShutdownTip",L"none"},
-	{L"shutdown_noupdate",IDS_SHUTDOWN_SHUTDOWN_NU,IDS_SHUTDOWN_NU_TIP,L"ShutdownItem",L"$Menu.Shutdown",L"$Menu.ShutdownTip",L"none"},
-	{L"switch_user",IDS_SHUTDOWN_SWITCH,IDS_SWITCH_TIP,L"SwitchUserItem",L"$Menu.SwitchUser",L"$Menu.SwitchUserTip",L"none"},
-	{L"lock",IDS_SHUTDOWN_LOCK,IDS_LOCK_TIP,L"LockItem",L"$Menu.Lock",L"$Menu.LockTip",L"none"},
+	{L"sleep",IDS_SHUTDOWN_SLEEP,IDS_SLEEP_TIP,L"SleepItem",L"$Menu.Sleep",L"$Menu.SleepTip",L"shell32.dll,26"},
+	{L"hibernate",IDS_SHUTDOWN_HIBERNATE,IDS_HIBERNATE_TIP,L"HibernateItem",L"$Menu.Hibernate",L"$Menu.HibernateTip",L"shell32.dll,221"},
+	{L"restart",IDS_SHUTDOWN_RESTART,IDS_RESTART_TIP,L"RestartItem",L"$Menu.Restart",L"$Menu.RestartTip",L"shell32.dll,16739"},
+	{L"restart_noupdate",IDS_SHUTDOWN_RESTART_NU,IDS_RESTART_NU_TIP,L"RestartItem",L"$Menu.Restart",L"$Menu.RestartTip",L"shell32.dll,16739"},
+	{L"shutdown",IDS_SHUTDOWN_SHUTDOWN,IDS_SHUTDOWN_TIP,L"ShutdownItem",L"$Menu.Shutdown",L"$Menu.ShutdownTip",L"shell32.dll,329"},
+	{L"shutdown_noupdate",IDS_SHUTDOWN_SHUTDOWN_NU,IDS_SHUTDOWN_NU_TIP,L"ShutdownItem",L"$Menu.Shutdown",L"$Menu.ShutdownTip",L"shell32.dll,329"},
+	{L"switch_user",IDS_SHUTDOWN_SWITCH,IDS_SWITCH_TIP,L"SwitchUserItem",L"$Menu.SwitchUser",L"$Menu.SwitchUserTip",L"shell32.dll,269"},
+	{L"lock",IDS_SHUTDOWN_LOCK,IDS_LOCK_TIP,L"LockItem",L"$Menu.Lock",L"$Menu.LockTip",L"shell32.dll,48"},
 	{L"recent_programs",IDS_SHOW_RECENT,IDS_RECENT_TIP,L"RecentPrograms",NULL,NULL,L"none"},
 	{L"heading",IDS_HEADING_ITEM,IDS_HEADING_TIP,L"HeadingItem",NULL,NULL,L"none"},
 	{L"pinned_programs",IDS_PINNED_ITEM,IDS_PINNED_ITEM_TIP,L"PinnedPrograms",NULL,NULL,L"none",NULL,StdMenuItem::MENU_STYLE_CLASSIC2},
-	{L"monitor_off",IDS_MONITOR_OFF_ITEM,IDS_MONITOR_OFF_TIP,L"MonitorOffItem",L"$Menu.MonitorOff",NULL,L"none"},
+	{L"monitor_off",IDS_MONITOR_OFF_ITEM,IDS_MONITOR_OFF_TIP,L"MonitorOffItem",L"$Menu.MonitorOff",NULL,L"imageres.dll,1008"},
 	{L"",IDS_CUSTOM_ITEM,IDS_CUSTOM_TIP,L"CustomItem",NULL,NULL,L""},
 	{NULL},
 };
@@ -1180,35 +1180,35 @@ L"SearchPeopleItem.Icon=shell32.dll,269\n"
 L"SwitchUserItem.Command=switch_user\n"
 L"SwitchUserItem.Label=$Menu.SwitchUser\n"
 L"SwitchUserItem.Tip=$Menu.SwitchUserTip\n"
-L"SwitchUserItem.Icon=none\n"
+L"SwitchUserItem.Icon=shell32.dll,269\n"
 L"LockItem.Command=lock\n"
 L"LockItem.Label=$Menu.Lock\n"
 L"LockItem.Tip=$Menu.LockTip\n"
-L"LockItem.Icon=none\n"
+L"LockItem.Icon=shell32.dll,48\n"
 L"SleepItem.Command=sleep\n"
 L"SleepItem.Label=$Menu.Sleep\n"
 L"SleepItem.Tip=$Menu.SleepTip\n"
-L"SleepItem.Icon=none\n"
+L"SleepItem.Icon=shell32.dll,26\n"
 L"HibernateItem.Command=hibernate\n"
 L"HibernateItem.Label=$Menu.Hibernate\n"
 L"HibernateItem.Tip=$Menu.HibernateTip\n"
-L"HibernateItem.Icon=none\n"
+L"HibernateItem.Icon=shell32.dll,221\n"
 L"RestartNUItem.Command=restart_noupdate\n"
 L"RestartNUItem.Label=$Menu.Restart\n"
 L"RestartNUItem.Tip=$Menu.RestartTip\n"
-L"RestartNUItem.Icon=none\n"
+L"RestartNUItem.Icon=shell32.dll,16739\n"
 L"RestartItem.Command=restart\n"
 L"RestartItem.Label=$Menu.Restart\n"
 L"RestartItem.Tip=$Menu.RestartTip\n"
-L"RestartItem.Icon=none\n"
+L"RestartItem.Icon=shell32.dll,16739\n"
 L"ShutdownNUItem.Command=shutdown_noupdate\n"
 L"ShutdownNUItem.Label=$Menu.Shutdown\n"
 L"ShutdownNUItem.Tip=$Menu.ShutdownTip\n"
-L"ShutdownNUItem.Icon=none\n"
+L"ShutdownNUItem.Icon=shell32.dll,329\n"
 L"ShutdownItem.Command=shutdown\n"
 L"ShutdownItem.Label=$Menu.Shutdown\n"
 L"ShutdownItem.Tip=$Menu.ShutdownTip\n"
-L"ShutdownItem.Icon=none\n"
+L"ShutdownItem.Icon=shell32.dll,329\n"
 ;
 
 const wchar_t *g_DefaultStartMenu2=
@@ -1291,47 +1291,47 @@ L"SearchPeopleItem.Icon=shell32.dll,269\n"
 L"SwitchUserItem.Command=switch_user\n"
 L"SwitchUserItem.Label=$Menu.SwitchUser\n"
 L"SwitchUserItem.Tip=$Menu.SwitchUserTip\n"
-L"SwitchUserItem.Icon=none\n"
+L"SwitchUserItem.Icon=shell32.dll,269\n"
 L"LockItem.Command=lock\n"
 L"LockItem.Label=$Menu.Lock\n"
 L"LockItem.Tip=$Menu.LockTip\n"
-L"LockItem.Icon=none\n"
+L"LockItem.Icon=shell32.dll,48\n"
 L"LogOffItem.Command=logoff\n"
 L"LogOffItem.Label=$Menu.LogOffShort\n"
-L"LogOffItem.Icon=none\n"
+L"LogOffItem.Icon=shell32.dll,325\n"
 L"LogOffItem.Tip=$Menu.LogOffTip\n"
 L"SleepItem.Command=sleep\n"
 L"SleepItem.Label=$Menu.Sleep\n"
 L"SleepItem.Tip=$Menu.SleepTip\n"
-L"SleepItem.Icon=none\n"
+L"SleepItem.Icon=shell32.dll,26\n"
 L"HibernateItem.Command=hibernate\n"
 L"HibernateItem.Label=$Menu.Hibernate\n"
 L"HibernateItem.Tip=$Menu.HibernateTip\n"
-L"HibernateItem.Icon=none\n"
+L"HibernateItem.Icon=shell32.dll,221\n"
 L"RestartNUItem.Command=restart_noupdate\n"
 L"RestartNUItem.Label=$Menu.Restart\n"
 L"RestartNUItem.Tip=$Menu.RestartTip\n"
-L"RestartNUItem.Icon=none\n"
+L"RestartNUItem.Icon=shell32.dll,16739\n"
 L"RestartItem.Command=restart\n"
 L"RestartItem.Label=$Menu.Restart\n"
 L"RestartItem.Tip=$Menu.RestartTip\n"
-L"RestartItem.Icon=none\n"
+L"RestartItem.Icon=shell32.dll,16739\n"
 L"UndockItem.Command=undock\n"
 L"UndockItem.Label=$Menu.Undock\n"
 L"UndockItem.Tip=$Menu.UndockTip\n"
-L"UndockItem.Icon=none\n"
+L"UndockItem.Icon=shell32.dll,331\n"
 L"DisconnectItem.Command=disconnect\n"
 L"DisconnectItem.Label=$Menu.Disconnect\n"
 L"DisconnectItem.Tip=$Menu.DisconnectTip\n"
-L"DisconnectItem.Icon=none\n"
+L"DisconnectItem.Icon=shell32.dll,329\n"
 L"ShutdownNUItem.Command=shutdown_noupdate\n"
 L"ShutdownNUItem.Label=$Menu.Shutdown\n"
 L"ShutdownNUItem.Tip=$Menu.ShutdownTip\n"
-L"ShutdownNUItem.Icon=none\n"
+L"ShutdownNUItem.Icon=shell32.dll,329\n"
 L"ShutdownItem.Command=shutdown\n"
 L"ShutdownItem.Label=$Menu.Shutdown\n"
 L"ShutdownItem.Tip=$Menu.ShutdownTip\n"
-L"ShutdownItem.Icon=none\n"
+L"ShutdownItem.Icon=shell32.dll,329\n"
 ;
 
 const wchar_t *g_DefaultStartMenu7=
