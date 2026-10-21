@@ -140,10 +140,8 @@ void EnableSettingsTreeAccessibility( HWND tree )
 	server->Release();
 }
 
-void ClearSettingsTreeItemAccessibility( HWND tree )
+static void ClearSettingsTreeItemAccessibilityImpl( IAccPropServices *props, HWND tree )
 {
-	CComPtr<IAccPropServices> props;
-	if (FAILED(CoCreateInstance(CLSID_SettingsAccPropServices,NULL,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&props)))) return;
 	MSAAPROPID properties[]={PROPID_SettingsAccState,PROPID_SettingsAccName,PROPID_SettingsAccRole};
 	for (HTREEITEM item=TreeView_GetRoot(tree);item;)
 	{
@@ -159,15 +157,23 @@ void ClearSettingsTreeItemAccessibility( HWND tree )
 	}
 }
 
-// Removes the accessibility properties of the tree and its items. Call it before the tree is destroyed
-void DisableSettingsTreeAccessibility( HWND tree )
+void ClearSettingsTreeItemAccessibility( HWND tree )
 {
-	// the property servers are objects in this DLL, and Windows keeps them after the window is gone. once the DLL is unloaded
-	// (Open-Shell exits or restarts), the next accessibility property set in the process makes Windows release the stale
-	// servers, which calls into unloaded code and crashes Explorer (FAST_FAIL_GUARD_ICALL_CHECK_FAILURE in oleacc)
-	ClearSettingsTreeItemAccessibility(tree);
+	if (!tree || !IsWindow(tree)) return;
 	CComPtr<IAccPropServices> props;
 	if (FAILED(CoCreateInstance(CLSID_SettingsAccPropServices,NULL,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&props)))) return;
+	ClearSettingsTreeItemAccessibilityImpl(props,tree);
+}
+
+void ClearSettingsTreeAccessibility( HWND tree )
+{
+	if (!tree || !IsWindow(tree)) return;
+	CComPtr<IAccPropServices> props;
+	if (FAILED(CoCreateInstance(CLSID_SettingsAccPropServices,NULL,CLSCTX_INPROC_SERVER,IID_PPV_ARGS(&props)))) return;
+
+	// Release all per-item servers while their accessibility IDs can still be
+	// resolved, then remove the container server and the tree-level name.
+	ClearSettingsTreeItemAccessibilityImpl(props,tree);
 	MSAAPROPID properties[]={PROPID_SettingsAccState,PROPID_SettingsAccName,PROPID_SettingsAccRole};
 	props->ClearHwndProps(tree,OBJID_CLIENT,CHILDID_SELF,properties,_countof(properties));
 }
@@ -2791,7 +2797,7 @@ LRESULT CTreeSettingsDlg::OnInitDialog( UINT uMsg, WPARAM wParam, LPARAM lParam,
 
 LRESULT CTreeSettingsDlg::OnDestroy( UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled )
 {
-	DisableSettingsTreeAccessibility(m_Tree);
+	ClearSettingsTreeAccessibility(m_Tree);
 	DestroyIcon(m_PlayIcon);
 	bHandled=FALSE;
 	m_EditMode=EDIT_NONE;
