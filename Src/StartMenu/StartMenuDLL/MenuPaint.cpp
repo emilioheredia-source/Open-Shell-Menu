@@ -1686,8 +1686,13 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 	MenuBitmap bmpPagerArrows;
 	SIZE pagArrowSize;
 	MenuSkin::TOpacity opacity=m_bSubMenu?s_Skin.Submenu_opacity:s_Skin.Main_opacity;
-	int glow=s_Skin.ItemSettings[m_bSubMenu?MenuSkin::SUBMENU_ITEM:MenuSkin::COLUMN1_ITEM].glowSize;
+	// the scrolling items can be in the second pane
+	const MenuSkin::ItemDrawSettings &scrollSettings=s_Skin.ItemSettings[m_bSubMenu?MenuSkin::SUBMENU_ITEM:(IsSecondPaneColumn(GetScrollColumn())?MenuSkin::COLUMN2_ITEM:MenuSkin::COLUMN1_ITEM)];
+	int glow=scrollSettings.glowSize;
 	if (!s_Theme) glow=0;
+	// composited text ignores the clip rectangle, so the pager buttons need their background drawn again (see DrawThemeTextEx below)
+	bool bTextSpills=(glow || opacity==MenuSkin::OPACITY_FULLALPHA || opacity==MenuSkin::OPACITY_FULLGLASS ||
+		scrollSettings.opacity==MenuSkin::OPACITY_FULLALPHA || scrollSettings.opacity==MenuSkin::OPACITY_FULLGLASS);
 	TRecentKeys recentType=(TRecentKeys)GetSettingInt(L"RecentProgKeys");
 
 	if (m_bSubMenu)
@@ -1718,13 +1723,14 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 	HGDIOBJ font0=GetCurrentObject(hdc,OBJ_FONT);
 	SetBkMode(hdc,TRANSPARENT);
 
-	// set clip rectangle for the scrollable items
-	int clipTop=m_rContent.top;
-	int clipBottom=m_rContent.bottom;
+	// set clip rectangle for the scrollable items (the pager covers only the column that scrolls, see GetScrollRect)
+	RECT rScroll=GetScrollRect();
+	int clipTop=rScroll.top;
+	int clipBottom=rScroll.bottom;
 	if (m_bScrollUp)
-		clipTop=m_rContent.top+m_ScrollButtonSize;
+		clipTop=rScroll.top+m_ScrollButtonSize;
 	if (m_bScrollDown)
-		clipBottom=m_rContent.top+m_ScrollHeight-m_ScrollButtonSize;
+		clipBottom=rScroll.top+m_ScrollHeight-m_ScrollButtonSize;
 	if (m_ScrollHeight>0)
 		IntersectClipRect(hdc,0,clipTop,m_rMenu.right,clipBottom);
 
@@ -1745,10 +1751,10 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 			SelectClipRgn(hdc,NULL);
 			if (m_bScrollUp)
 			{
-				if (glow || opacity==MenuSkin::OPACITY_FULLALPHA || opacity==MenuSkin::OPACITY_FULLGLASS)
+				if (bTextSpills)
 				{
 					// fix background behind the up button (DrawThemeTextEx may spill onto the tablecloth)
-					RECT rc={m_rContent.left,0,m_rContent.right,clipTop};
+					RECT rc={rScroll.left,0,rScroll.right,clipTop};
 					if (bAlphaMain || !bmpMain)
 					{
 						SetDCBrushColor(hdc,m_bSubMenu?s_Skin.Submenu_background:s_Skin.Main_background);
@@ -1757,7 +1763,7 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 					if (bmpMain)
 					{
 						HGDIOBJ bmp0=SelectObject(hdc2,bmpMain);
-						IntersectClipRect(hdc,m_rContent.left,0,m_rContent.right,clipTop);
+						IntersectClipRect(hdc,rScroll.left,0,rScroll.right,clipTop);
 						MarginsBlit(hdc2,hdc,rSrcMain,m_rMenu,rMarginsMain,bAlphaMain);
 						SelectObject(hdc2,bmp0);
 						SelectClipRgn(hdc,NULL);
@@ -1765,7 +1771,7 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 				}
 
 				// draw up button
-				RECT rc=m_rContent;
+				RECT rc=rScroll;
 				rc.bottom=clipTop;
 				if (bmpPager.GetBitmap() && bmpPagerArrows.GetBitmap())
 				{
@@ -1802,10 +1808,10 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 			{
 				int bottom=clipBottom+s_Skin.ItemSettings[m_bSubMenu?MenuSkin::SUBMENU_ITEM:MenuSkin::COLUMN1_ITEM].itemHeight;
 				if (bottom>=m_rMenu.bottom) bottom=m_rMenu.bottom;
-				if (bottom>clipBottom && (glow || opacity==MenuSkin::OPACITY_FULLALPHA || opacity==MenuSkin::OPACITY_FULLGLASS))
+				if (bottom>clipBottom && bTextSpills)
 				{
 					// fix background behind the up button (DrawThemeTextEx may spill onto the tablecloth)
-					RECT rc={m_rContent.left,clipBottom,m_rContent.right,bottom};
+					RECT rc={rScroll.left,clipBottom,rScroll.right,bottom};
 					if (bAlphaMain || !bmpMain)
 					{
 						SetDCBrushColor(hdc,m_bSubMenu?s_Skin.Submenu_background:s_Skin.Main_background);
@@ -1814,7 +1820,7 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 					if (bmpMain)
 					{
 						HGDIOBJ bmp0=SelectObject(hdc2,bmpMain);
-						IntersectClipRect(hdc,m_rContent.left,clipBottom,m_rContent.right,bottom);
+						IntersectClipRect(hdc,rScroll.left,clipBottom,rScroll.right,bottom);
 						MarginsBlit(hdc2,hdc,rSrcMain,m_rMenu,rMarginsMain,bAlphaMain);
 						SelectObject(hdc2,bmp0);
 						SelectClipRgn(hdc,NULL);
@@ -1822,8 +1828,8 @@ void CMenuContainer::DrawBackground( HDC hdc, const RECT &drawRect )
 				}
 
 				// draw down button
-				RECT rc=m_rContent;
-				rc.bottom=m_rContent.top+m_ScrollHeight;
+				RECT rc=rScroll;
+				rc.bottom=rScroll.top+m_ScrollHeight;
 				rc.top=clipBottom;
 				if (bmpPager.GetBitmap() && bmpPagerArrows.GetBitmap())
 				{

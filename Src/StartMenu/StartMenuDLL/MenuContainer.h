@@ -724,6 +724,10 @@ private:
 	static int GetRecentProgramCount( void );
 	static void SetJumplistFlags( std::vector<MenuItem> &items );
 	static TSecondPane GetSecondPaneMode( void );
+	static int CountColumnBreaks( const StdMenuItem *pStdItem );
+	bool IsSecondPaneAfterBreaks( int breaks, int count );
+	RECT GetScrollRect( void );
+	int GetScrollColumn( void ) { return (m_ScrollCount>0 && !m_Items.empty())?m_Items[0].column:0; } // where the pinned programs start
 	bool IsInSecondPane( int index );
 	static void InheritColumnFlags( const MenuItem &placeholder, MenuItem &item );
 	static void SetOverflowBreaks( std::vector<MenuItem> &items, int first, int last, int rows );

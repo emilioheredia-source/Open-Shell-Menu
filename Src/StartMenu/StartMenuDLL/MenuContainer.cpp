@@ -1080,7 +1080,7 @@ void CMenuContainer::AddStandardItems( bool bPlacePinned )
 		const StdMenuItem *pInlineParent=NULL;
 		int searchProviderIndex=-1;
 		m_SearchProvidersCount=0;
-		bool bSecondColumn=false;
+		int breaks=0, breakCount=CountColumnBreaks(m_pStdItem); // for the icon size of the items in the second pane
 		for (const StdMenuItem *pStdItem=m_pStdItem;;pStdItem++)
 		{
 			if (pStdItem->id==MENU_LAST)
@@ -1099,7 +1099,7 @@ void CMenuContainer::AddStandardItems( bool bPlacePinned )
 				continue;
 
 			if (pStdItem->id==MENU_COLUMN_BREAK && !m_bSubMenu && s_Skin.TwoColumns)
-				bSecondColumn=true;
+				breaks++;
 
 			int stdOptions=GetStdOptions(pStdItem->id);
 			if (!(stdOptions&MENU_ENABLED)) continue;
@@ -1293,7 +1293,7 @@ void CMenuContainer::AddStandardItems( bool bPlacePinned )
 			item.bSplit=item.bFolder && (item.pStdItem->settings&StdMenuItem::MENU_SPLIT_BUTTON)!=0;
 
 			// get icon
-			MenuSkin::TIconSize mainIconSize=!bSecondColumn ? s_Skin.Main_icon_size : s_Skin.Main2_icon_size;
+			MenuSkin::TIconSize mainIconSize=!IsSecondPaneAfterBreaks(breaks,breakCount) ? s_Skin.Main_icon_size : s_Skin.Main2_icon_size;
 			if (item.bInline && mainIconSize==MenuSkin::ICON_SIZE_NONE)
 				mainIconSize=s_Skin.Main_icon_size;
 			
@@ -1719,6 +1719,44 @@ void CMenuContainer::UpdatePaneColumns( void )
 }
 
 // The left edge of a column, in window coordinates. Each pane starts at its own content rectangle
+// The number of column breaks in a menu's items
+int CMenuContainer::CountColumnBreaks( const StdMenuItem *pStdItem )
+{
+	int count=0;
+	for (;pStdItem->id!=MENU_LAST;pStdItem++)
+		if (pStdItem->id==MENU_COLUMN_BREAK)
+			count++;
+	return count;
+}
+
+// Whether the items after the given number of column breaks (out of count) get the second-pane look.
+// AddStandardItems needs it for their icon size, before the layout knows the columns
+bool CMenuContainer::IsSecondPaneAfterBreaks( int breaks, int count )
+{
+	if (m_bSubMenu || !s_Skin.TwoColumns || count==0) return false;
+	if (s_bWin7Style) return breaks>0; // the Windows 7 style uses only the first break
+	switch (GetSecondPaneMode())
+	{
+		case SECOND_PANE_NONE: return false;
+		case SECOND_PANE_FIRST: return breaks==0;
+		default: return breaks==count;
+	}
+}
+
+// Where the pager scrolls: the content of a sub-menu, or the column of the main menu where the pinned programs start
+RECT CMenuContainer::GetScrollRect( void )
+{
+	if (!m_bTwoColumns || m_ColumnOffsets.empty())
+		return m_rContent;
+	int column=GetScrollColumn();
+	int pane=IsSecondPaneColumn(column)?1:0;
+	RECT rc=pane?m_rContent2:m_rContent;
+	rc.left=GetColumnX(column);
+	if (column+1<m_PaneColumns[pane].last)
+		rc.right=GetColumnX(column+1)-GetMainColumnGap(); // more columns follow in the pane: stop at the gap before the next one
+	return rc;
+}
+
 int CMenuContainer::GetColumnX( int column )
 {
 	if (IsSecondPaneColumn(column))
@@ -4309,20 +4347,22 @@ void CMenuContainer::InitWindowInternal( bool bDontShrink, const POINT &corner, 
 	}
 
 	// create pager
-	if (!bMultiColumn && scrollHeight>maxHeight[0] && m_ScrollCount>0 && (m_bSubMenu || !s_bWin7Style))
+	int scrollPane=IsSecondPaneColumn(GetScrollColumn())?1:0; // the pinned programs can have the second-pane look
+	int scrollTop=GetScrollRect().top;
+	if (!bMultiColumn && scrollHeight>maxHeight[scrollPane] && m_ScrollCount>0 && (m_bSubMenu || !s_bWin7Style))
 	{
-		int d=scrollHeight-maxHeight[0];
-		m_ScrollHeight=m_Items[m_ScrollCount-1].itemRect.bottom-d-m_rContent.top;
+		int d=scrollHeight-maxHeight[scrollPane];
+		m_ScrollHeight=m_Items[m_ScrollCount-1].itemRect.bottom-d-scrollTop;
 		if (m_ScrollHeight<=0)
 		{
 			if (m_ScrollCount<(int)m_Items.size())
-				d=m_Items[m_ScrollCount].itemRect.bottom-m_rContent.top;
+				d=m_Items[m_ScrollCount].itemRect.bottom-scrollTop;
 			m_ScrollOffset=m_ScrollHeight=0;
 			for (int i=0;i<m_ScrollCount;i++)
 				m_Items[i].itemRect.bottom=m_Items[i].itemRect.top;
 		}
 		for (size_t i=m_ScrollCount;i<m_Items.size();i++)
-			if (m_Items[i].column==0)
+			if (m_Items[i].column==GetScrollColumn())
 				OffsetRect(&m_Items[i].itemRect,0,-d);
 
 		std::map<unsigned int,int>::iterator it=s_MenuScrolls.find(m_FolderHash[0]);
@@ -4658,7 +4698,7 @@ void CMenuContainer::UpdateScroll( void )
 	else
 	{
 		m_bScrollUp=(m_ScrollOffset>0);
-		m_bScrollDown=(m_ScrollOffset+m_ScrollHeight<m_Items[m_ScrollCount-1].itemRect.bottom-m_rContent.top);
+		m_bScrollDown=(m_ScrollOffset+m_ScrollHeight<m_Items[m_ScrollCount-1].itemRect.bottom-GetScrollRect().top);
 	}
 }
 
@@ -4666,7 +4706,7 @@ void CMenuContainer::UpdateScroll( const POINT *pt, bool bTouch )
 {
 	if (m_bScrollUp)
 	{
-		RECT rc=m_rContent;
+		RECT rc=GetScrollRect();
 		rc.bottom=rc.top+m_ScrollButtonSize;
 		bool bHot=pt && PtInRect(&rc,*pt);
 		if (m_bScrollUpHot!=bHot)
@@ -4680,8 +4720,8 @@ void CMenuContainer::UpdateScroll( const POINT *pt, bool bTouch )
 
 	if (m_bScrollDown)
 	{
-		RECT rc=m_rContent;
-		rc.bottom=m_rContent.top+m_ScrollHeight;
+		RECT rc=GetScrollRect();
+		rc.bottom=rc.top+m_ScrollHeight;
 		rc.top=rc.bottom-m_ScrollButtonSize;
 		bool bHot=pt && PtInRect(&rc,*pt);
 		if (m_bScrollDownHot!=bHot)
@@ -4817,9 +4857,10 @@ bool CMenuContainer::GetItemRect( int index, RECT &rc )
 		if (m_ScrollHeight>0 && index<m_ScrollCount)
 		{
 			OffsetRect(&rc,0,-m_ScrollOffset);
-			if (m_bScrollUp && rc.bottom<=m_rContent.top+m_ScrollButtonSize)
+			int scrollTop=GetScrollRect().top;
+			if (m_bScrollUp && rc.bottom<=scrollTop+m_ScrollButtonSize)
 				return false;
-			if (m_bScrollDown && rc.top>=m_rContent.top+m_ScrollHeight-m_ScrollButtonSize)
+			if (m_bScrollDown && rc.top>=scrollTop+m_ScrollHeight-m_ScrollButtonSize)
 				return false;
 		}
 		if (m_SearchScrollCount>m_SearchScrollHeight && index>=m_OriginalCount)
@@ -4832,10 +4873,13 @@ bool CMenuContainer::GetItemRect( int index, RECT &rc )
 
 int CMenuContainer::HitTest( const POINT &pt, bool *bArrow, bool bDrop )
 {
-	if (m_bScrollUp && pt.y<m_rContent.top+m_ScrollButtonSize)
+	// the pager buttons cover only the column that scrolls
+	RECT rScroll=GetScrollRect();
+	bool bInPager=(pt.x>=rScroll.left && pt.x<rScroll.right);
+	if (m_bScrollUp && bInPager && pt.y<rScroll.top+m_ScrollButtonSize)
 		return -1;
 	int start=0;
-	if (m_bScrollDown && pt.y>=m_rContent.top+m_ScrollHeight-m_ScrollButtonSize)
+	if (m_bScrollDown && bInPager && pt.y>=rScroll.top+m_ScrollHeight-m_ScrollButtonSize)
 		start=m_ScrollCount;
 	int n=(int)m_Items.size();
 	for (int i=start;i<n;i++)
@@ -5107,7 +5151,7 @@ LRESULT CMenuContainer::OnGesture( UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL
 						scroll=0;
 						bOverpan=true;
 					}
-					int total=m_Items[m_ScrollCount-1].itemRect.bottom-m_rContent.top-m_ScrollHeight;
+					int total=m_Items[m_ScrollCount-1].itemRect.bottom-GetScrollRect().top-m_ScrollHeight;
 					if (scroll>total)
 					{
 						scroll=total;
@@ -5579,7 +5623,7 @@ LRESULT CMenuContainer::OnTimer( UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& 
 		else if (m_bScrollDown && m_bScrollDownHot)
 		{
 			scroll+=s_Skin.ItemSettings[m_bSubMenu?MenuSkin::SUBMENU_ITEM:MenuSkin::COLUMN1_ITEM].itemHeight*speed/6;
-			int total=m_Items[m_ScrollCount-1].itemRect.bottom-m_rContent.top-m_ScrollHeight;
+			int total=m_Items[m_ScrollCount-1].itemRect.bottom-GetScrollRect().top-m_ScrollHeight;
 			if (scroll>total) scroll=total;
 		}
 		if (m_ScrollOffset!=scroll)
@@ -6076,7 +6120,7 @@ LRESULT CMenuContainer::OnKeyDown( UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL
 			int y0=m_Items[index].itemRect.top;
 			int scrollOffset=0;
 			if (m_ScrollCount>0)
-				scrollOffset=m_Items[m_ScrollCount-1].itemRect.bottom-m_rContent.top-m_ScrollHeight;
+				scrollOffset=m_Items[m_ScrollCount-1].itemRect.bottom-GetScrollRect().top-m_ScrollHeight;
 			if (index<m_ScrollCount)
 				y0-=scrollOffset;
 			int dist=0x7FFFFFFF;
@@ -6168,7 +6212,7 @@ LRESULT CMenuContainer::OnKeyDown( UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL
 			int y0=m_Items[index].itemRect.bottom;
 			int scrollOffset=0;
 			if (m_ScrollCount>0)
-				scrollOffset=m_Items[m_ScrollCount-1].itemRect.bottom-m_rContent.top-m_ScrollHeight;
+				scrollOffset=m_Items[m_ScrollCount-1].itemRect.bottom-GetScrollRect().top-m_ScrollHeight;
 			if (index<m_ScrollCount)
 				y0-=scrollOffset;
 			int dist=0x7FFFFFFF;
@@ -6892,7 +6936,7 @@ LRESULT CMenuContainer::OnMouseWheel( UINT uMsg, WPARAM wParam, LPARAM lParam, B
 		int scroll=m_ScrollOffset;
 		scroll-=n*s_Skin.ItemSettings[m_bSubMenu?MenuSkin::SUBMENU_ITEM:MenuSkin::COLUMN1_ITEM].itemHeight;
 		if (scroll<0) scroll=0;
-		int total=m_Items[m_ScrollCount-1].itemRect.bottom-m_rContent.top-m_ScrollHeight;
+		int total=m_Items[m_ScrollCount-1].itemRect.bottom-GetScrollRect().top-m_ScrollHeight;
 		if (scroll>total) scroll=total;
 		if (m_ScrollOffset!=scroll)
 		{
