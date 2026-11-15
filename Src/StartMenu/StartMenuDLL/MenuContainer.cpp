@@ -4898,8 +4898,8 @@ int CMenuContainer::HitTest( const POINT &pt, bool *bArrow, bool bDrop )
 		{
 			OffsetRect(&rc,0,-m_SearchScrollPos*(rc.bottom-rc.top));
 		}
-		else if (bDrop && m_bTwoColumns && i<n-1 && m_Items[i+1].column==0 && m_Items[i+1].bAlignBottom)
-			rc.bottom=m_Items[i+1].itemRect.top; // when dropping on the padding of the first column, assume the item above the padding was hit
+		else if (bDrop && m_bTwoColumns && i<n-1 && m_Items[i+1].column==GetScrollColumn() && m_Items[i+1].bAlignBottom)
+			rc.bottom=m_Items[i+1].itemRect.top; // when dropping on the padding of the pinned programs' column, assume the item above the padding was hit
 		if (PtInRect(&rc,pt))
 		{
 			if (bArrow)
